@@ -1,0 +1,39 @@
+{
+  "entity": {
+    "sensor": {
+      "bridge_info": {
+        "default": "mdi:router-network"
+      },
+      "networkmap": {
+        "default": "mdi:sitemap"
+      },
+      "offline_devices": {
+        "default": "mdi:access-point-network-off"
+      }
+    },
+    "switch": {
+      "permit_join": {
+        "default": "mdi:account-multiple-minus",
+        "state": {
+          "on": "mdi:account-multiple-plus"
+        }
+      }
+    },
+    "select": {
+      "log_level": {
+        "default": "mdi:text-box-search-outline"
+      }
+    },
+    "button": {
+      "refresh_networkmap": {
+        "default": "mdi:sitemap-outline"
+      },
+      "remove_device": {
+        "default": "mdi:delete-outline"
+      },
+      "reinterview_device": {
+        "default": "mdi:magnify-scan"
+      }
+    }
+  }
+}

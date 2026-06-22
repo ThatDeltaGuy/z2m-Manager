@@ -1,0 +1,135 @@
+rename_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: zigbee2mqtt_manager
+    to_name:
+      required: true
+      example: "kitchen_light"
+      selector:
+        text:
+
+remove_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: zigbee2mqtt_manager
+    force:
+      required: false
+      default: false
+      selector:
+        boolean:
+    block:
+      required: false
+      default: false
+      selector:
+        boolean:
+
+reinterview_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: zigbee2mqtt_manager
+
+permit_join:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: zigbee2mqtt_manager
+    time:
+      required: false
+      default: 254
+      selector:
+        number:
+          min: 0
+          max: 254
+          unit_of_measurement: seconds
+          mode: box
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: zigbee2mqtt_manager
+
+restart:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: zigbee2mqtt_manager
+
+set_options:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: zigbee2mqtt_manager
+    options:
+      required: true
+      example: '{"advanced": {"log_level": "debug"}}'
+      selector:
+        object:
+
+ota_check:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: zigbee2mqtt_manager
+
+ota_update:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: zigbee2mqtt_manager
+
+refresh_networkmap:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: zigbee2mqtt_manager
+    type:
+      required: false
+      selector:
+        select:
+          options:
+            - raw
+            - graphviz
+            - plantuml
+    routes:
+      required: false
+      selector:
+        boolean:
+
+raw_command:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: zigbee2mqtt_manager
+    command:
+      required: true
+      example: "touchlink/scan"
+      selector:
+        text:
+    payload:
+      required: false
+      example: "{}"
+      selector:
+        object:

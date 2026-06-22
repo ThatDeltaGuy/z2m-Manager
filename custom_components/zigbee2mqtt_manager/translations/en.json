@@ -1,0 +1,235 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a Zigbee2MQTT instance",
+        "description": "Connects to a Zigbee2MQTT instance over your existing MQTT broker. This does not duplicate the entities Zigbee2MQTT already creates via its own MQTT discovery - it adds bridge-level controls and a curated set of extras.",
+        "data": {
+          "name": "Instance name",
+          "base_topic": "MQTT base topic"
+        },
+        "data_description": {
+          "name": "A friendly name for this Zigbee2MQTT instance, used to prefix its entities. Defaults to the base topic if left blank.",
+          "base_topic": "The mqtt.base_topic configured in this instance's Zigbee2MQTT configuration.yaml (default: zigbee2mqtt)."
+        }
+      }
+    },
+    "error": {
+      "base_topic_required": "Base topic cannot be empty."
+    },
+    "abort": {
+      "mqtt_not_configured": "The MQTT integration is not set up, or its broker connection is not yet available. Set up Home Assistant's MQTT integration first, then try again.",
+      "already_configured": "A Zigbee2MQTT instance with this base topic is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Zigbee2MQTT Manager options",
+        "data": {
+          "offline_threshold_minutes": "Offline threshold (minutes)",
+          "networkmap_interval_minutes": "Network map refresh interval (minutes)",
+          "networkmap_type": "Network map type",
+          "networkmap_routes": "Include routes in network map",
+          "permit_join_duration": "Default permit-join duration (seconds)"
+        },
+        "data_description": {
+          "offline_threshold_minutes": "Used only as a fallback for devices that don't publish their own availability topic - compared against their last_seen time.",
+          "networkmap_interval_minutes": "0 disables automatic refresh; the network map can still be refreshed on demand via its button or the refresh_networkmap service.",
+          "networkmap_type": "Only \"raw\" produces structured attributes - graphviz/plantuml return a text graph instead.",
+          "networkmap_routes": "Adds active route information to the network map, at the cost of a slower refresh.",
+          "permit_join_duration": "Used when the permit-join switch is turned on; 254 matches Zigbee2MQTT's own default."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "bridge_connectivity": {
+        "name": "Connectivity"
+      }
+    },
+    "sensor": {
+      "bridge_info": {
+        "name": "Bridge info"
+      },
+      "networkmap": {
+        "name": "Network map"
+      },
+      "offline_devices": {
+        "name": "Offline devices"
+      }
+    },
+    "switch": {
+      "permit_join": {
+        "name": "Permit join"
+      }
+    },
+    "select": {
+      "log_level": {
+        "name": "Log level"
+      }
+    },
+    "button": {
+      "restart": {
+        "name": "Restart"
+      },
+      "refresh_networkmap": {
+        "name": "Refresh network map"
+      },
+      "remove_device": {
+        "name": "Remove device"
+      },
+      "reinterview_device": {
+        "name": "Re-interview"
+      }
+    },
+    "update": {
+      "ota_update": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "services": {
+    "rename_device": {
+      "name": "Rename device",
+      "description": "Renames a Zigbee device via Zigbee2MQTT's bridge API.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The linked Zigbee device to rename."
+        },
+        "to_name": {
+          "name": "New name",
+          "description": "The new friendly name for the device."
+        }
+      }
+    },
+    "remove_device": {
+      "name": "Remove device",
+      "description": "Removes a Zigbee device from the network.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The linked Zigbee device to remove."
+        },
+        "force": {
+          "name": "Force",
+          "description": "Force removal even if the device doesn't acknowledge it. Use as a last resort for devices that are no longer responding."
+        },
+        "block": {
+          "name": "Block",
+          "description": "Prevent the device from immediately rejoining the network."
+        }
+      }
+    },
+    "reinterview_device": {
+      "name": "Re-interview device",
+      "description": "Forces Zigbee2MQTT to re-interview a device, re-reading its capabilities.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The linked Zigbee device to re-interview."
+        }
+      }
+    },
+    "permit_join": {
+      "name": "Permit join",
+      "description": "Allows or disallows new Zigbee devices to join the network.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Zigbee2MQTT instance",
+          "description": "Which configured Zigbee2MQTT instance to act on."
+        },
+        "time": {
+          "name": "Duration",
+          "description": "How long to permit joining, in seconds. 0 disallows joining immediately."
+        },
+        "device_id": {
+          "name": "Device (optional)",
+          "description": "Scope permit-join to a single router instead of the whole network. Leave blank to target the whole network."
+        }
+      }
+    },
+    "restart": {
+      "name": "Restart bridge",
+      "description": "Restarts a Zigbee2MQTT instance.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Zigbee2MQTT instance",
+          "description": "Which configured Zigbee2MQTT instance to restart."
+        }
+      }
+    },
+    "set_options": {
+      "name": "Set bridge options",
+      "description": "Updates Zigbee2MQTT's runtime configuration (advanced - mirrors Zigbee2MQTT's own options schema).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Zigbee2MQTT instance",
+          "description": "Which configured Zigbee2MQTT instance to act on."
+        },
+        "options": {
+          "name": "Options",
+          "description": "A nested object matching Zigbee2MQTT's options schema, e.g. {\"advanced\": {\"log_level\": \"debug\"}}."
+        }
+      }
+    },
+    "ota_check": {
+      "name": "Check for firmware update",
+      "description": "Checks whether a firmware update is available for a device, without installing it.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The linked Zigbee device to check."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Install firmware update",
+      "description": "Installs an available firmware update on a device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The linked Zigbee device to update."
+        }
+      }
+    },
+    "refresh_networkmap": {
+      "name": "Refresh network map",
+      "description": "Requests a fresh network map from a Zigbee2MQTT instance.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Zigbee2MQTT instance",
+          "description": "Which configured Zigbee2MQTT instance to act on."
+        },
+        "type": {
+          "name": "Type (optional)",
+          "description": "Overrides the configured network map type for this refresh only. Only \"raw\" produces structured attributes."
+        },
+        "routes": {
+          "name": "Include routes (optional)",
+          "description": "Overrides the configured routes setting for this refresh only."
+        }
+      }
+    },
+    "raw_command": {
+      "name": "Raw bridge command",
+      "description": "Publishes any bridge/request/<command> and returns its response - an escape hatch for commands without dedicated UI, such as touchlink or group management.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Zigbee2MQTT instance",
+          "description": "Which configured Zigbee2MQTT instance to act on."
+        },
+        "command": {
+          "name": "Command",
+          "description": "The bridge command name, e.g. touchlink/scan or group/add."
+        },
+        "payload": {
+          "name": "Payload (optional)",
+          "description": "The JSON payload to send with the request."
+        }
+      }
+    }
+  }
+}
