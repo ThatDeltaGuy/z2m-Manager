@@ -19,6 +19,9 @@ from .helpers import async_respond_ok
 
 NETWORKMAP_ENTITY_ID = "sensor.test_instance_network_map"
 OFFLINE_ENTITY_ID = "sensor.test_instance_offline_devices"
+BATTERY_LOW_ENTITY_ID = "sensor.test_instance_battery_low_devices"
+LOW_LQI_ENTITY_ID = "sensor.test_instance_low_link_quality_devices"
+OTA_AVAILABLE_ENTITY_ID = "sensor.test_instance_firmware_updates_available"
 REFRESH_BUTTON_ENTITY_ID = "button.test_instance_refresh_network_map"
 
 
@@ -85,4 +88,73 @@ async def test_offline_devices_sensor_counts_and_lists(
     assert state.state == "1"
     assert len(state.attributes["devices"]) == 1
     assert state.attributes["devices"][0]["name"] == "kitchen_light"
-    assert state.attributes["devices"][0]["detection"] == "availability"
+    assert "last_seen" in state.attributes["devices"][0]
+    assert set(state.attributes["devices"][0]) == {"name", "last_seen"}
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_battery_low_devices_sensor_counts_and_lists(
+    hass: HomeAssistant, mqtt_mock, config_entry: MockConfigEntry
+) -> None:
+    async_fire_mqtt_message(
+        hass,
+        "zigbee2mqtt/bridge/devices",
+        json.dumps(
+            [
+                {"ieee_address": "0xAAA", "friendly_name": "kitchen_light"},
+                {"ieee_address": "0xCOORD", "friendly_name": "Coordinator", "type": "Coordinator"},
+            ]
+        ),
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get(BATTERY_LOW_ENTITY_ID).state == "0"
+
+    async_fire_mqtt_message(hass, "zigbee2mqtt/kitchen_light", json.dumps({"battery": 10}))
+    await hass.async_block_till_done()
+
+    state = hass.states.get(BATTERY_LOW_ENTITY_ID)
+    assert state.state == "1"
+    assert state.attributes["devices"] == [{"name": "kitchen_light", "battery": 10}]
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_low_lqi_devices_sensor_counts_and_lists(
+    hass: HomeAssistant, mqtt_mock, config_entry: MockConfigEntry
+) -> None:
+    async_fire_mqtt_message(
+        hass,
+        "zigbee2mqtt/bridge/devices",
+        json.dumps([{"ieee_address": "0xAAA", "friendly_name": "kitchen_light"}]),
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get(LOW_LQI_ENTITY_ID).state == "0"
+
+    async_fire_mqtt_message(hass, "zigbee2mqtt/kitchen_light", json.dumps({"linkquality": 20}))
+    await hass.async_block_till_done()
+
+    state = hass.states.get(LOW_LQI_ENTITY_ID)
+    assert state.state == "1"
+    assert state.attributes["devices"] == [{"name": "kitchen_light", "linkquality": 20}]
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_ota_available_devices_sensor_counts_and_lists(
+    hass: HomeAssistant, mqtt_mock, config_entry: MockConfigEntry
+) -> None:
+    async_fire_mqtt_message(
+        hass,
+        "zigbee2mqtt/bridge/devices",
+        json.dumps([{"ieee_address": "0xAAA", "friendly_name": "kitchen_light"}]),
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get(OTA_AVAILABLE_ENTITY_ID).state == "0"
+
+    async_fire_mqtt_message(hass, "zigbee2mqtt/kitchen_light", json.dumps({"update": {"state": "available"}}))
+    await hass.async_block_till_done()
+
+    state = hass.states.get(OTA_AVAILABLE_ENTITY_ID)
+    assert state.state == "1"
+    assert state.attributes["devices"] == [{"name": "kitchen_light"}]

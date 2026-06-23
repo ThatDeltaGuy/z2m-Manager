@@ -13,18 +13,24 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_BASE_TOPIC,
+    CONF_BATTERY_LOW_THRESHOLD_PERCENT,
+    CONF_LOW_LQI_THRESHOLD,
     CONF_NAME,
     CONF_NETWORKMAP_INTERVAL_MINUTES,
     CONF_NETWORKMAP_ROUTES,
     CONF_NETWORKMAP_TYPE,
     CONF_OFFLINE_THRESHOLD_MINUTES,
+    CONF_OTA_CHECK_INTERVAL_MINUTES,
     CONF_PERMIT_JOIN_DURATION,
     CONFIG_FLOW_MQTT_WAIT_TIMEOUT,
     DEFAULT_BASE_TOPIC,
+    DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
+    DEFAULT_LOW_LQI_THRESHOLD,
     DEFAULT_NETWORKMAP_INTERVAL_MINUTES,
     DEFAULT_NETWORKMAP_ROUTES,
     DEFAULT_NETWORKMAP_TYPE,
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
+    DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
     DOMAIN,
     NETWORKMAP_TYPES,
@@ -124,6 +130,28 @@ class Z2MManagerOptionsFlow(OptionsFlow):
                         default=options.get(CONF_PERMIT_JOIN_DURATION, DEFAULT_PERMIT_JOIN_DURATION),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(min=1, max=254, mode=selector.NumberSelectorMode.BOX)
+                    ),
+                    vol.Optional(
+                        CONF_BATTERY_LOW_THRESHOLD_PERCENT,
+                        default=options.get(
+                            CONF_BATTERY_LOW_THRESHOLD_PERCENT, DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
+                    ),
+                    vol.Optional(
+                        CONF_LOW_LQI_THRESHOLD,
+                        default=options.get(CONF_LOW_LQI_THRESHOLD, DEFAULT_LOW_LQI_THRESHOLD),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0, max=255, mode=selector.NumberSelectorMode.BOX)
+                    ),
+                    vol.Optional(
+                        CONF_OTA_CHECK_INTERVAL_MINUTES,
+                        default=options.get(
+                            CONF_OTA_CHECK_INTERVAL_MINUTES, DEFAULT_OTA_CHECK_INTERVAL_MINUTES
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=0, mode=selector.NumberSelectorMode.BOX)
                     ),
                 }
             ),

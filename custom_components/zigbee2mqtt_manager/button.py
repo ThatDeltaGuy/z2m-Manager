@@ -27,7 +27,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up bridge-level buttons, plus per-device buttons as devices link."""
     hub = entry.runtime_data
-    async_add_entities([Z2MRestartButton(hub), Z2MNetworkMapRefreshButton(hub)])
+    async_add_entities([Z2MRestartButton(hub), Z2MNetworkMapRefreshButton(hub), Z2MOtaCheckAllButton(hub)])
 
     @callback
     def _async_device_linkable(payload: DeviceLinkedPayload) -> None:
@@ -92,6 +92,28 @@ class Z2MNetworkMapRefreshButton(Z2MBridgeEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self._hub.async_refresh_networkmap()
+
+
+class Z2MOtaCheckAllButton(Z2MBridgeEntity, ButtonEntity):
+    """Trigger an on-demand OTA check for every known device.
+
+    Unlike the periodic sweep (which logs and swallows per-device failures -
+    see Z2MHub.async_check_all_ota_updates), this is still a fire-and-forget
+    bulk action from the user's point of view: a single unresponsive device
+    among many shouldn't make pressing this button look like it failed, so
+    async_press does not re-raise per-device errors either - they're already
+    visible in the log.
+    """
+
+    _attr_translation_key = "check_all_ota_updates"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, hub: Z2MHub) -> None:
+        super().__init__(hub)
+        self._attr_unique_id = f"{hub.entry_id}_check_all_ota_updates"
+
+    async def async_press(self) -> None:
+        await self._hub.async_check_all_ota_updates()
 
 
 class Z2MRemoveDeviceButton(Z2MLinkedDeviceEntity, ButtonEntity):

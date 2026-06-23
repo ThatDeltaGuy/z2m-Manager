@@ -9,6 +9,15 @@
       },
       "offline_devices": {
         "default": "mdi:access-point-network-off"
+      },
+      "battery_low_devices": {
+        "default": "mdi:battery-alert-variant-outline"
+      },
+      "low_lqi_devices": {
+        "default": "mdi:wifi-strength-alert-outline"
+      },
+      "ota_available_devices": {
+        "default": "mdi:package-up"
       }
     },
     "switch": {
@@ -33,6 +42,9 @@
       },
       "reinterview_device": {
         "default": "mdi:magnify-scan"
+      },
+      "check_all_ota_updates": {
+        "default": "mdi:package-down"
       }
     }
   }

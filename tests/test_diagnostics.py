@@ -27,6 +27,9 @@ async def test_diagnostics_includes_device_linking_state(
     assert diagnostics["device_linking"]["device_id_to_ieee"][target_device.id] == IEEE_ADDRESS
     assert diagnostics["pending_requests"] == 0
     assert diagnostics["networkmap"] is None
+    assert diagnostics["devices"]["battery_low"] == []
+    assert diagnostics["devices"]["low_lqi"] == []
+    assert diagnostics["devices"]["ota_available"] == []
 
 
 @pytest.mark.parametrize("expected_lingering_timers", [True])

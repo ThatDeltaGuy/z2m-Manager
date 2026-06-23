@@ -13,15 +13,21 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_BASE_TOPIC,
+    CONF_BATTERY_LOW_THRESHOLD_PERCENT,
+    CONF_LOW_LQI_THRESHOLD,
     CONF_NAME,
     CONF_NETWORKMAP_INTERVAL_MINUTES,
     CONF_NETWORKMAP_ROUTES,
     CONF_NETWORKMAP_TYPE,
     CONF_OFFLINE_THRESHOLD_MINUTES,
+    CONF_OTA_CHECK_INTERVAL_MINUTES,
     CONF_PERMIT_JOIN_DURATION,
+    DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
+    DEFAULT_LOW_LQI_THRESHOLD,
     DEFAULT_NETWORKMAP_ROUTES,
     DEFAULT_NETWORKMAP_TYPE,
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
+    DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
     DOMAIN,
 )
@@ -47,7 +53,6 @@ PLATFORMS: list[Platform] = [
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
-    Platform.UPDATE,
 ]
 
 
@@ -76,6 +81,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: Z2MManagerConfigEntry) -
         networkmap_interval_minutes=entry.options.get(CONF_NETWORKMAP_INTERVAL_MINUTES, 0),
         networkmap_type=entry.options.get(CONF_NETWORKMAP_TYPE, DEFAULT_NETWORKMAP_TYPE),
         networkmap_routes=entry.options.get(CONF_NETWORKMAP_ROUTES, DEFAULT_NETWORKMAP_ROUTES),
+        battery_low_threshold_percent=entry.options.get(
+            CONF_BATTERY_LOW_THRESHOLD_PERCENT, DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT
+        ),
+        low_lqi_threshold=entry.options.get(CONF_LOW_LQI_THRESHOLD, DEFAULT_LOW_LQI_THRESHOLD),
+        ota_check_interval_minutes=entry.options.get(
+            CONF_OTA_CHECK_INTERVAL_MINUTES, DEFAULT_OTA_CHECK_INTERVAL_MINUTES
+        ),
     )
 
     try:

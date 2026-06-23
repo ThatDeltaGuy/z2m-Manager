@@ -21,6 +21,7 @@ from . import Z2MManagerConfigEntry
 from .const import (
     signal_bridge_groups,
     signal_bridge_info,
+    signal_device_metrics_changed,
     signal_networkmap,
     signal_offline_candidates_changed,
 )
@@ -41,6 +42,9 @@ async def async_setup_entry(
             Z2MBridgeInfoSensor(hub),
             Z2MNetworkMapSensor(hub),
             Z2MOfflineDevicesSensor(hub),
+            Z2MBatteryLowDevicesSensor(hub),
+            Z2MLowLqiDevicesSensor(hub),
+            Z2MOtaAvailableDevicesSensor(hub),
         ]
     )
 
@@ -220,12 +224,7 @@ class Z2MOfflineDevicesSensor(Z2MBridgeEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
             "devices": [
-                {
-                    "name": device.friendly_name,
-                    "ieee_address": device.ieee_address,
-                    "detection": device.detection,
-                    "since": device.since.isoformat(),
-                }
+                {"name": device.friendly_name, "last_seen": device.since.isoformat()}
                 for device in self._hub.compute_offline_devices()
             ]
         }
@@ -236,6 +235,127 @@ class Z2MOfflineDevicesSensor(Z2MBridgeEntity, SensorEntity):
             async_dispatcher_connect(
                 self.hass,
                 signal_offline_candidates_changed(self._hub.entry_id),
+                self._handle_update,
+            )
+        )
+
+    @callback
+    def _handle_update(self, _data: Any) -> None:
+        self.async_write_ha_state()
+
+
+class Z2MBatteryLowDevicesSensor(Z2MBridgeEntity, SensorEntity):
+    """Count and list of devices (excluding the coordinator) at or below the
+    configured battery threshold.
+    """
+
+    _attr_translation_key = "battery_low_devices"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hub: Z2MHub) -> None:
+        super().__init__(hub)
+        self._attr_unique_id = f"{hub.entry_id}_battery_low_devices"
+
+    @property
+    def native_value(self) -> int:
+        return len(self._hub.compute_battery_low_devices())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "devices": [
+                {"name": device.friendly_name, "battery": device.battery}
+                for device in self._hub.compute_battery_low_devices()
+            ]
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                signal_device_metrics_changed(self._hub.entry_id),
+                self._handle_update,
+            )
+        )
+
+    @callback
+    def _handle_update(self, _data: Any) -> None:
+        self.async_write_ha_state()
+
+
+class Z2MLowLqiDevicesSensor(Z2MBridgeEntity, SensorEntity):
+    """Count and list of devices (excluding the coordinator) at or below the
+    configured link-quality threshold.
+    """
+
+    _attr_translation_key = "low_lqi_devices"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hub: Z2MHub) -> None:
+        super().__init__(hub)
+        self._attr_unique_id = f"{hub.entry_id}_low_lqi_devices"
+
+    @property
+    def native_value(self) -> int:
+        return len(self._hub.compute_low_lqi_devices())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "devices": [
+                {"name": device.friendly_name, "linkquality": device.linkquality}
+                for device in self._hub.compute_low_lqi_devices()
+            ]
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                signal_device_metrics_changed(self._hub.entry_id),
+                self._handle_update,
+            )
+        )
+
+    @callback
+    def _handle_update(self, _data: Any) -> None:
+        self.async_write_ha_state()
+
+
+class Z2MOtaAvailableDevicesSensor(Z2MBridgeEntity, SensorEntity):
+    """Count and list of devices with a firmware update currently available.
+
+    Unlike the battery/LQI sensors, the coordinator is not excluded here -
+    some Zigbee adapters do support Zigbee2MQTT-managed firmware updates.
+    """
+
+    _attr_translation_key = "ota_available_devices"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hub: Z2MHub) -> None:
+        super().__init__(hub)
+        self._attr_unique_id = f"{hub.entry_id}_ota_available_devices"
+
+    @property
+    def native_value(self) -> int:
+        return len(self._hub.compute_ota_available_devices())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "devices": [
+                {"name": device.friendly_name} for device in self._hub.compute_ota_available_devices()
+            ]
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                signal_device_metrics_changed(self._hub.entry_id),
                 self._handle_update,
             )
         )

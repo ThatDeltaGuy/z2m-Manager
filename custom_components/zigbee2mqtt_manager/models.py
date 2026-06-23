@@ -95,3 +95,29 @@ class OfflineDevice:
     friendly_name: str
     detection: Literal["availability", "last_seen"]
     since: datetime
+
+
+@dataclass(slots=True)
+class BatteryLowDevice:
+    """One entry in the battery-low sensor's attribute list."""
+
+    ieee_address: str
+    friendly_name: str
+    battery: int
+
+
+@dataclass(slots=True)
+class LowLqiDevice:
+    """One entry in the low-link-quality sensor's attribute list."""
+
+    ieee_address: str
+    friendly_name: str
+    linkquality: int
+
+
+@dataclass(slots=True)
+class OtaAvailableDevice:
+    """One entry in the OTA-update-available sensor's attribute list."""
+
+    ieee_address: str
+    friendly_name: str
