@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -66,10 +66,18 @@ class Z2MLinkedDeviceEntity(Entity):
     Never sets device_info/identifiers - self.device_entry is assigned
     directly to the device device_link.py already found, so this entity
     attaches to it without creating or claiming ownership of that device
-    (see device_link.py and the project plan for why this matters). Also
-    persists the link into the entity registry's device_id field in
-    async_added_to_hass, so the device's page in the UI actually lists this
-    entity, not just the in-memory entity object.
+    (see device_link.py and the project plan for why this matters).
+
+    Persisting the link into the entity registry's device_id field is *not*
+    done here in async_added_to_hass: that hook only runs for live
+    (enabled) entities, but some of these entities are disabled by default
+    (e.g. remove/re-interview - see button.py), and HA's own entity
+    registration determines device_id purely from entity.device_info (which
+    this class deliberately never sets) regardless of enabled state. A
+    disabled instance would otherwise be registered with no device
+    association at all, even though self.device_entry is set correctly.
+    Platform setup functions must call async_attach_to_linked_device (below)
+    for every instance they create, enabled or not - see button.py/image.py.
 
     Only created for devices that are currently linkable (see hub.py's link
     reconciliation), and self-removes the moment that stops being true -
@@ -110,7 +118,6 @@ class Z2MLinkedDeviceEntity(Entity):
         return f"{device_name} {own_suggestion}"
 
     async def async_added_to_hass(self) -> None:
-        er.async_get(self.hass).async_update_entity(self.entity_id, device_id=self._ha_device_id)
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
@@ -123,3 +130,20 @@ class Z2MLinkedDeviceEntity(Entity):
     def _handle_unlinkable(self, ieee_address: str) -> None:
         if ieee_address == self._ieee_address:
             self.hass.async_create_task(self.async_remove(force_remove=True))
+
+
+def async_attach_to_linked_device(
+    hass: HomeAssistant, *, platform: str, unique_id: str, ha_device_id: str
+) -> None:
+    """Set a just-created entity's device_id in the registry.
+
+    Must be called once after async_add_entities() for every
+    Z2MLinkedDeviceEntity instance, regardless of whether it ends up enabled
+    or disabled - see that class's docstring for why this can't be done in
+    async_added_to_hass instead. platform is the entity platform's own
+    domain (e.g. "button", "image"), not this integration's domain.
+    """
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
+    if entity_id is not None:
+        registry.async_update_entity(entity_id, device_id=ha_device_id)

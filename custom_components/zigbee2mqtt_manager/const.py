@@ -19,6 +19,8 @@ CONF_PERMIT_JOIN_DURATION = "permit_join_duration"
 CONF_BATTERY_LOW_THRESHOLD_PERCENT = "battery_low_threshold_percent"
 CONF_LOW_LQI_THRESHOLD = "low_lqi_threshold"
 CONF_OTA_CHECK_INTERVAL_MINUTES = "ota_check_interval_minutes"
+CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT = "remove_button_enabled_by_default"
+CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT = "reinterview_button_enabled_by_default"
 
 # Defaults
 DEFAULT_BASE_TOPIC = "zigbee2mqtt"
@@ -30,6 +32,11 @@ DEFAULT_PERMIT_JOIN_DURATION = 254
 DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT = 15
 DEFAULT_LOW_LQI_THRESHOLD = 50
 DEFAULT_OTA_CHECK_INTERVAL_MINUTES = 0
+# Both False: remove/re-interview default to disabled in the entity
+# registry so they can't be pressed by accident from a dashboard - the user
+# can flip either back on per-instance via the options flow.
+DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT = False
+DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT = False
 
 NETWORKMAP_TYPES = ["raw", "graphviz", "plantuml"]
 LOG_LEVELS = ["debug", "info", "warning", "error"]

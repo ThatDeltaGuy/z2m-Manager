@@ -99,7 +99,8 @@ async def test_handle_bridge_devices(hass: HomeAssistant, hub: Z2MHub) -> None:
             "ieee_address": "0x000d6ffffe9d363c",
             "friendly_name": "living_room_light",
             "type": "Router",
-            "model_id": "LCT001",
+            "model_id": "TRADFRI bulb E27",  # the device's own raw Zigbee model string
+            "definition": {"model": "LED1545G12", "vendor": "IKEA"},
             "software_build_id": "1.2.3",
             "supported": True,
             "disabled": False,
@@ -118,9 +119,23 @@ async def test_handle_bridge_devices(hass: HomeAssistant, hub: Z2MHub) -> None:
     light = hub.devices["0x000d6ffffe9d363c"]
     assert light.friendly_name == "living_room_light"
     assert light.software_build_id == "1.2.3"
+    assert light.model_id == "TRADFRI bulb E27"
+    assert light.definition_model == "LED1545G12"
     assert hub.devices["0x00158d00018255df"].friendly_name == "hallway_motion"
+    assert hub.devices["0x00158d00018255df"].definition_model is None
     assert len(received) == 1
     assert received[0] is hub.devices
+
+
+async def test_handle_bridge_devices_null_definition_does_not_raise(hass: HomeAssistant, hub: Z2MHub) -> None:
+    """Zigbee2MQTT sends "definition": null for devices it hasn't matched to
+    a known definition yet (e.g. mid-interview) - .get() on None would raise.
+    """
+    payload = [{"ieee_address": "0xAAA", "friendly_name": "unidentified_device", "definition": None}]
+    hub._handle_bridge_devices(_msg(f"{BASE_TOPIC}/bridge/devices", json.dumps(payload)))
+    await hass.async_block_till_done()
+
+    assert hub.devices["0xAAA"].definition_model is None
 
 
 async def test_handle_bridge_devices_skips_entries_without_ieee_address(
