@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -22,11 +23,18 @@ from .const import (
     DEFAULT_NETWORKMAP_TYPE,
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
+    DOMAIN,
 )
 from .hub import Z2MHub, Z2MMqttUnavailableError
 from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
+
+# This integration is config-entry-only (no YAML setup) - this tells
+# hassfest/HA that explicitly, and makes any accidental YAML config under
+# the domain key fail loudly with a message pointing at the UI instead of
+# being silently ignored.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type Z2MManagerConfigEntry = ConfigEntry[Z2MHub]
 

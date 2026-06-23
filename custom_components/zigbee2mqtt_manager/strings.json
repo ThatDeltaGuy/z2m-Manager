@@ -171,7 +171,7 @@
         },
         "options": {
           "name": "Options",
-          "description": "A nested object matching Zigbee2MQTT's options schema, e.g. {\"advanced\": {\"log_level\": \"debug\"}}."
+          "description": "A nested object matching Zigbee2MQTT's options schema - see the example for setting the advanced log level."
         }
       }
     },
@@ -215,7 +215,7 @@
     },
     "raw_command": {
       "name": "Raw bridge command",
-      "description": "Publishes any bridge/request/<command> and returns its response - an escape hatch for commands without dedicated UI, such as touchlink or group management.",
+      "description": "Publishes any bridge/request command and returns its response - an escape hatch for commands without dedicated UI, such as touchlink or group management.",
       "fields": {
         "config_entry_id": {
           "name": "Zigbee2MQTT instance",
