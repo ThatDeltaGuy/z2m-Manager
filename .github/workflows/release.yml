@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release; leading v or V is optional
+        required: true
+        type: string
+      prerelease:
+        description: Mark the GitHub Release as a prerelease
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'branch'
+
+    steps:
+      - name: Validate release branch
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "release" ]; then
+            echo "This workflow must be run from the release branch." >&2
+            echo "Current ref: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Normalize release version
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+        run: |
+          version="${RAW_VERSION#[vV]}"
+          if [ -z "$version" ]; then
+            echo "Release version must not be empty." >&2
+            exit 1
+          fi
+
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Validate manifest version and tag availability
+        run: |
+          manifest_version=$(python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("custom_components/zigbee2mqtt_manager/manifest.json").read_text())
+          print(manifest["version"])
+          PY
+          )
+
+          if [ "$manifest_version" != "$VERSION" ]; then
+            echo "Manifest version $manifest_version does not match requested version $VERSION" >&2
+            exit 1
+          fi
+
+          tag_name="v$VERSION"
+          if git rev-parse "$tag_name" >/dev/null 2>&1; then
+            echo "Tag $tag_name already exists" >&2
+            exit 1
+          fi
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-test.txt
+
+      - name: Run test suite
+        run: python -m pytest tests/ -v --tb=short
+
+      - name: Build HACS release archive
+        run: |
+          asset_name="zigbee2mqtt_manager.zip"
+          mkdir -p dist
+          rm -f "dist/$asset_name"
+          (cd custom_components/zigbee2mqtt_manager && zip -rq "/tmp/$asset_name" .)
+          mv "/tmp/$asset_name" "dist/$asset_name"
+
+      - name: Create and push tag
+        run: |
+          tag_name="v$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag_name" -m "Release $tag_name"
+          git push origin "$tag_name"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          tag_name="v$VERSION"
+          prerelease_flag=""
+          if [ "$PRERELEASE" = "true" ]; then
+            prerelease_flag="--prerelease"
+          fi
+
+          gh release create "$tag_name" \
+            dist/zigbee2mqtt_manager.zip \
+            --title "$tag_name" \
+            --generate-notes \
+            $prerelease_flag
