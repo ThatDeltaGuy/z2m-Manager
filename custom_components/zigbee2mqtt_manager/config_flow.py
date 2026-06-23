@@ -22,6 +22,8 @@ from .const import (
     CONF_OFFLINE_THRESHOLD_MINUTES,
     CONF_OTA_CHECK_INTERVAL_MINUTES,
     CONF_PERMIT_JOIN_DURATION,
+    CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+    CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     CONFIG_FLOW_MQTT_WAIT_TIMEOUT,
     DEFAULT_BASE_TOPIC,
     DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
@@ -32,6 +34,8 @@ from .const import (
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
     DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
+    DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+    DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     DOMAIN,
     NETWORKMAP_TYPES,
 )
@@ -153,6 +157,20 @@ class Z2MManagerOptionsFlow(OptionsFlow):
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(min=0, mode=selector.NumberSelectorMode.BOX)
                     ),
+                    vol.Optional(
+                        CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
+                        default=options.get(
+                            CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
+                            DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
+                        ),
+                    ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+                        default=options.get(
+                            CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+                            DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+                        ),
+                    ): selector.BooleanSelector(),
                 }
             ),
         )

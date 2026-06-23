@@ -19,6 +19,8 @@ CONF_PERMIT_JOIN_DURATION = "permit_join_duration"
 CONF_BATTERY_LOW_THRESHOLD_PERCENT = "battery_low_threshold_percent"
 CONF_LOW_LQI_THRESHOLD = "low_lqi_threshold"
 CONF_OTA_CHECK_INTERVAL_MINUTES = "ota_check_interval_minutes"
+CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT = "remove_button_enabled_by_default"
+CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT = "reinterview_button_enabled_by_default"
 
 # Defaults
 DEFAULT_BASE_TOPIC = "zigbee2mqtt"
@@ -30,6 +32,11 @@ DEFAULT_PERMIT_JOIN_DURATION = 254
 DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT = 15
 DEFAULT_LOW_LQI_THRESHOLD = 50
 DEFAULT_OTA_CHECK_INTERVAL_MINUTES = 0
+# Both False: remove/re-interview default to disabled in the entity
+# registry so they can't be pressed by accident from a dashboard - the user
+# can flip either back on per-instance via the options flow.
+DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT = False
+DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT = False
 
 NETWORKMAP_TYPES = ["raw", "graphviz", "plantuml"]
 LOG_LEVELS = ["debug", "info", "warning", "error"]
@@ -57,9 +64,8 @@ CMD_DEVICE_OTA_UPDATE = "device/ota_update/update"
 # Request timeouts (seconds)
 REQUEST_TIMEOUT_DEFAULT = 10.0
 # Generating a network map (especially with routes=true) can take well over
-# 30s on a larger mesh - 30s was too tight in practice and caused refreshes
-# to silently time out.
-REQUEST_TIMEOUT_NETWORKMAP = 90.0
+# 90s on a larger mesh
+REQUEST_TIMEOUT_NETWORKMAP = 300.0
 REQUEST_TIMEOUT_OTA_CHECK = 30.0
 REQUEST_TIMEOUT_OTA_UPDATE = 600.0
 MQTT_CLIENT_WAIT_TIMEOUT = 10.0

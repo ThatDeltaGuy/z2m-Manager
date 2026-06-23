@@ -33,6 +33,8 @@ from .const import (
     CONF_OFFLINE_THRESHOLD_MINUTES,
     CONF_OTA_CHECK_INTERVAL_MINUTES,
     CONF_PERMIT_JOIN_DURATION,
+    CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+    CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     COORDINATOR_DEVICE_TYPE,
     DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
     DEFAULT_LOW_LQI_THRESHOLD,
@@ -42,6 +44,8 @@ from .const import (
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
     DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
+    DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+    DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     LINK_RECONCILE_DEBOUNCE,
     REQUEST_TIMEOUT_DEFAULT,
     REQUEST_TIMEOUT_NETWORKMAP,
@@ -125,6 +129,8 @@ class Z2MHub:
         battery_low_threshold_percent: int = DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
         low_lqi_threshold: int = DEFAULT_LOW_LQI_THRESHOLD,
         ota_check_interval_minutes: int = DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
+        remove_button_enabled_by_default: bool = DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
+        reinterview_button_enabled_by_default: bool = DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
     ) -> None:
         self.hass = hass
         self.entry_id = entry_id
@@ -136,6 +142,13 @@ class Z2MHub:
         self.networkmap_routes = networkmap_routes
         self.battery_low_threshold_percent = battery_low_threshold_percent
         self.low_lqi_threshold = low_lqi_threshold
+        # Only consulted at entity-creation time (HA reads
+        # entity_registry_enabled_default once, when an entity is first
+        # registered) - changing these via the options flow only affects
+        # devices that link/relink afterwards, not entities that already
+        # exist. That's standard HA behavior for this setting, not a bug.
+        self.remove_button_enabled_by_default = remove_button_enabled_by_default
+        self.reinterview_button_enabled_by_default = reinterview_button_enabled_by_default
 
         self.bridge_info: BridgeInfo | None = None
         self.bridge_online: bool = False
@@ -363,6 +376,9 @@ class Z2MHub:
             },
             timeout=REQUEST_TIMEOUT_NETWORKMAP,
         )
+        return self._apply_networkmap_data(data)
+
+    def _apply_networkmap_data(self, data: dict[str, Any]) -> NetworkMapResult:
         result = NetworkMapResult(
             refreshed_at=dt_util.utcnow(),
             type=data.get("type", self.networkmap_type),
@@ -468,6 +484,12 @@ class Z2MHub:
             CONF_BATTERY_LOW_THRESHOLD_PERCENT, self.battery_low_threshold_percent
         )
         self.low_lqi_threshold = options.get(CONF_LOW_LQI_THRESHOLD, self.low_lqi_threshold)
+        self.remove_button_enabled_by_default = options.get(
+            CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT, self.remove_button_enabled_by_default
+        )
+        self.reinterview_button_enabled_by_default = options.get(
+            CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT, self.reinterview_button_enabled_by_default
+        )
         self._reschedule_networkmap_timer(
             options.get(CONF_NETWORKMAP_INTERVAL_MINUTES, DEFAULT_NETWORKMAP_INTERVAL_MINUTES)
         )
@@ -704,11 +726,16 @@ class Z2MHub:
             ieee_address = item.get("ieee_address")
             if not ieee_address:
                 continue
+            # "definition" is explicitly null for devices Zigbee2MQTT hasn't
+            # matched to a known definition (e.g. mid-interview) - .get()
+            # would still raise on None.get(...), so guard with `or {}`.
+            definition = item.get("definition") or {}
             devices[ieee_address] = Z2MDevice(
                 ieee_address=ieee_address,
                 friendly_name=item.get("friendly_name", ieee_address),
                 type=item.get("type"),
                 model_id=item.get("model_id"),
+                definition_model=definition.get("model"),
                 power_source=item.get("power_source"),
                 software_build_id=item.get("software_build_id"),
                 date_code=item.get("date_code"),
@@ -845,11 +872,28 @@ class Z2MHub:
             # Expected for retained/duplicate deliveries, responses to requests
             # we already timed out on, or transactions sent by something else
             # entirely (e.g. the Zigbee2MQTT frontend) - not an error.
-            _LOGGER.debug(
-                "Discarding unmatched bridge response for '%s' (transaction=%s)",
-                command,
-                transaction,
-            )
+            #
+            # networkmap is the one exception: on a large mesh (especially
+            # with routes=true) it can take longer than even
+            # REQUEST_TIMEOUT_NETWORKMAP to respond, and the data is still
+            # worth applying once it finally arrives even though the
+            # original request (and the button press awaiting it) already
+            # timed out - otherwise the networkmap sensor is stuck at
+            # "unknown" forever despite Zigbee2MQTT actually responding.
+            if future is None and command == CMD_NETWORKMAP and payload.get("status") == "ok":
+                _LOGGER.info(
+                    "Applying a Zigbee2MQTT networkmap response that arrived after "
+                    "its request had already timed out (transaction=%s) - consider "
+                    "raising REQUEST_TIMEOUT_NETWORKMAP if this happens often",
+                    transaction,
+                )
+                self._apply_networkmap_data(payload.get("data", {}))
+            else:
+                _LOGGER.debug(
+                    "Discarding unmatched bridge response for '%s' (transaction=%s)",
+                    command,
+                    transaction,
+                )
             return
         future.set_result(payload)
 

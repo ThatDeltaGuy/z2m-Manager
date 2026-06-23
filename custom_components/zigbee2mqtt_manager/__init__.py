@@ -22,6 +22,8 @@ from .const import (
     CONF_OFFLINE_THRESHOLD_MINUTES,
     CONF_OTA_CHECK_INTERVAL_MINUTES,
     CONF_PERMIT_JOIN_DURATION,
+    CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+    CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
     DEFAULT_LOW_LQI_THRESHOLD,
     DEFAULT_NETWORKMAP_ROUTES,
@@ -29,6 +31,8 @@ from .const import (
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
     DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
+    DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
+    DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     DOMAIN,
 )
 from .hub import Z2MHub, Z2MMqttUnavailableError
@@ -50,6 +54,7 @@ type Z2MManagerConfigEntry = ConfigEntry[Z2MHub]
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.IMAGE,
     Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
@@ -87,6 +92,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: Z2MManagerConfigEntry) -
         low_lqi_threshold=entry.options.get(CONF_LOW_LQI_THRESHOLD, DEFAULT_LOW_LQI_THRESHOLD),
         ota_check_interval_minutes=entry.options.get(
             CONF_OTA_CHECK_INTERVAL_MINUTES, DEFAULT_OTA_CHECK_INTERVAL_MINUTES
+        ),
+        remove_button_enabled_by_default=entry.options.get(
+            CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT, DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT
+        ),
+        reinterview_button_enabled_by_default=entry.options.get(
+            CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT, DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT
         ),
     )
 

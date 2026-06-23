@@ -34,7 +34,9 @@
           "permit_join_duration": "Default permit-join duration (seconds)",
           "battery_low_threshold_percent": "Battery low threshold (%)",
           "low_lqi_threshold": "Low link quality threshold",
-          "ota_check_interval_minutes": "Automatic OTA check interval (minutes)"
+          "ota_check_interval_minutes": "Automatic OTA check interval (minutes)",
+          "remove_button_enabled_by_default": "Enable the remove-device button by default",
+          "reinterview_button_enabled_by_default": "Enable the re-interview button by default"
         },
         "data_description": {
           "offline_threshold_minutes": "Used only as a fallback for devices that don't publish their own availability topic - compared against their last_seen time.",
@@ -44,7 +46,9 @@
           "permit_join_duration": "Used when the permit-join switch is turned on; 254 matches Zigbee2MQTT's own default.",
           "battery_low_threshold_percent": "Devices at or below this battery percentage appear in the battery-low sensor.",
           "low_lqi_threshold": "Devices at or below this link quality value appear in the low-link-quality sensor.",
-          "ota_check_interval_minutes": "0 disables automatic checking; devices can still be checked on demand via the check-for-updates button or the ota_check service."
+          "ota_check_interval_minutes": "0 disables automatic checking; devices can still be checked on demand via the check-for-updates button or the ota_check service.",
+          "remove_button_enabled_by_default": "Off by default so it can't be pressed by accident from a dashboard - removing a device is destructive. Only affects devices that link after this is changed, not ones that already have the button.",
+          "reinterview_button_enabled_by_default": "Off by default to keep it out of the way on dashboards. Only affects devices that link after this is changed, not ones that already have the button."
         }
       }
     }
@@ -73,6 +77,11 @@
       },
       "ota_available_devices": {
         "name": "Firmware updates available"
+      }
+    },
+    "image": {
+      "device_image": {
+        "name": "Image"
       }
     },
     "switch": {

@@ -85,6 +85,57 @@ async def test_refresh_networkmap_dispatches_signal(hass: HomeAssistant, mqtt_mo
 
 
 @pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_late_networkmap_response_still_applies(hass: HomeAssistant, mqtt_mock, hub: Z2MHub) -> None:
+    """A networkmap response can arrive after its own request already timed
+    out - large meshes with routes=true can exceed REQUEST_TIMEOUT_NETWORKMAP.
+    Unlike other commands' late responses (silently discarded - see
+    _handle_bridge_response), this one must still update the sensor, or it's
+    stuck at "unknown" forever despite Zigbee2MQTT actually responding.
+    """
+    received = []
+    async_dispatcher_connect(hass, signal_networkmap(ENTRY_ID), lambda result: received.append(result))
+
+    # No call to async_refresh_networkmap() at all here - this transaction
+    # was never in hub._pending, simulating one that _async_request's own
+    # timeout already popped before this response arrived.
+    async_fire_mqtt_message(
+        hass,
+        f"{BASE_TOPIC}/bridge/response/networkmap",
+        json.dumps(
+            {
+                "data": {"type": "raw", "value": {"nodes": [], "links": []}},
+                "status": "ok",
+                "transaction": "late-transaction-not-pending",
+            }
+        ),
+    )
+    await hass.async_block_till_done()
+
+    assert len(received) == 1
+    assert received[0].value == {"nodes": [], "links": []}
+    assert hub.last_networkmap is received[0]
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_late_networkmap_error_response_is_not_applied(
+    hass: HomeAssistant, mqtt_mock, hub: Z2MHub
+) -> None:
+    """An error status with no pending future is discarded, not treated as data."""
+    received = []
+    async_dispatcher_connect(hass, signal_networkmap(ENTRY_ID), lambda result: received.append(result))
+
+    async_fire_mqtt_message(
+        hass,
+        f"{BASE_TOPIC}/bridge/response/networkmap",
+        json.dumps({"status": "error", "error": "boom", "transaction": "late-error-transaction"}),
+    )
+    await hass.async_block_till_done()
+
+    assert received == []
+    assert hub.last_networkmap is None
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
 async def test_periodic_refresh_swallows_failures(hass: HomeAssistant, mqtt_mock) -> None:
     """A crashed scheduled callback would be worse than one missed refresh."""
     hub = Z2MHub(hass, ENTRY_ID, BASE_TOPIC, "Test Instance")

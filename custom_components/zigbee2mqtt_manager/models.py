@@ -29,12 +29,21 @@ class BridgeInfo:
 
 @dataclass(slots=True)
 class Z2MDevice:
-    """One entry of <base_topic>/bridge/devices."""
+    """One entry of <base_topic>/bridge/devices.
+
+    model_id is the device's own raw Zigbee-protocol model string (e.g.
+    "lumi.plug") - it is NOT a Zigbee2MQTT catalog identifier and isn't
+    useful for looking anything up on zigbee2mqtt.io. definition_model is
+    the separate, nested "definition.model" field (e.g. "WXKG01LM") that
+    Zigbee2MQTT's own device database and image CDN key off; it's None for
+    devices Zigbee2MQTT hasn't matched to a known definition.
+    """
 
     ieee_address: str
     friendly_name: str
     type: str | None = None
     model_id: str | None = None
+    definition_model: str | None = None
     power_source: str | None = None
     software_build_id: str | None = None
     date_code: str | None = None
