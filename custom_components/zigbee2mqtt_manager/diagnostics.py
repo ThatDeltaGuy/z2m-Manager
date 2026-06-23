@@ -39,6 +39,9 @@ async def async_get_config_entry_diagnostics(
             "devices": [asdict(device) for device in hub.devices.values()],
             "ota_state": {ieee_address: asdict(state) for ieee_address, state in hub.device_ota.items()},
             "offline": [asdict(device) for device in hub.compute_offline_devices()],
+            "battery_low": [asdict(device) for device in hub.compute_battery_low_devices()],
+            "low_lqi": [asdict(device) for device in hub.compute_low_lqi_devices()],
+            "ota_available": [asdict(device) for device in hub.compute_ota_available_devices()],
         },
         "device_linking": {
             "link_cache": {

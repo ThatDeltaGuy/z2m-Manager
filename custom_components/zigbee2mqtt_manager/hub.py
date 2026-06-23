@@ -25,15 +25,22 @@ from .const import (
     CMD_OPTIONS,
     CMD_PERMIT_JOIN,
     CMD_RESTART,
+    CONF_BATTERY_LOW_THRESHOLD_PERCENT,
+    CONF_LOW_LQI_THRESHOLD,
     CONF_NETWORKMAP_INTERVAL_MINUTES,
     CONF_NETWORKMAP_ROUTES,
     CONF_NETWORKMAP_TYPE,
     CONF_OFFLINE_THRESHOLD_MINUTES,
+    CONF_OTA_CHECK_INTERVAL_MINUTES,
     CONF_PERMIT_JOIN_DURATION,
+    COORDINATOR_DEVICE_TYPE,
+    DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
+    DEFAULT_LOW_LQI_THRESHOLD,
     DEFAULT_NETWORKMAP_INTERVAL_MINUTES,
     DEFAULT_NETWORKMAP_ROUTES,
     DEFAULT_NETWORKMAP_TYPE,
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
+    DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     DEFAULT_PERMIT_JOIN_DURATION,
     LINK_RECONCILE_DEBOUNCE,
     REQUEST_TIMEOUT_DEFAULT,
@@ -45,6 +52,7 @@ from .const import (
     signal_bridge_state,
     signal_device_availability,
     signal_device_linkable,
+    signal_device_metrics_changed,
     signal_device_state,
     signal_device_unlinkable,
     signal_devices,
@@ -57,12 +65,15 @@ from .device_link import (
     find_ha_device_for_z2m_device,
 )
 from .models import (
+    BatteryLowDevice,
     BridgeInfo,
     DeviceAvailability,
     DeviceLinkedPayload,
     DeviceOtaState,
+    LowLqiDevice,
     NetworkMapResult,
     OfflineDevice,
+    OtaAvailableDevice,
     Z2MDevice,
     Z2MGroup,
 )
@@ -112,6 +123,9 @@ class Z2MHub:
         networkmap_interval_minutes: int = 0,
         networkmap_type: str = DEFAULT_NETWORKMAP_TYPE,
         networkmap_routes: bool = DEFAULT_NETWORKMAP_ROUTES,
+        battery_low_threshold_percent: int = DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
+        low_lqi_threshold: int = DEFAULT_LOW_LQI_THRESHOLD,
+        ota_check_interval_minutes: int = DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
     ) -> None:
         self.hass = hass
         self.entry_id = entry_id
@@ -121,6 +135,8 @@ class Z2MHub:
         self.offline_threshold_minutes = offline_threshold_minutes
         self.networkmap_type = networkmap_type
         self.networkmap_routes = networkmap_routes
+        self.battery_low_threshold_percent = battery_low_threshold_percent
+        self.low_lqi_threshold = low_lqi_threshold
 
         self.bridge_info: BridgeInfo | None = None
         self.bridge_online: bool = False
@@ -131,8 +147,12 @@ class Z2MHub:
 
         self._device_availability: dict[str, DeviceAvailability] = {}
         self._device_last_seen: dict[str, datetime] = {}
+        self._device_battery: dict[str, int] = {}
+        self._device_linkquality: dict[str, int] = {}
         self._networkmap_interval_minutes = networkmap_interval_minutes
         self._networkmap_timer_unsub: Any = None
+        self._ota_check_interval_minutes = ota_check_interval_minutes
+        self._ota_check_timer_unsub: Any = None
 
         # device_id -> ieee_address, maintained for free during link
         # reconciliation; lets services resolve a targeted HA device back to
@@ -192,6 +212,7 @@ class Z2MHub:
         )
 
         self._reschedule_networkmap_timer(self._networkmap_interval_minutes)
+        self._reschedule_ota_check_timer(self._ota_check_interval_minutes)
 
     async def async_unload(self) -> None:
         """Unsubscribe from every topic and cancel any in-flight requests."""
@@ -206,6 +227,10 @@ class Z2MHub:
         if self._networkmap_timer_unsub is not None:
             self._networkmap_timer_unsub()
             self._networkmap_timer_unsub = None
+
+        if self._ota_check_timer_unsub is not None:
+            self._ota_check_timer_unsub()
+            self._ota_check_timer_unsub = None
 
         for future in self._pending.values():
             if not future.done():
@@ -239,12 +264,24 @@ class Z2MHub:
             )
             response = await asyncio.wait_for(future, timeout=timeout)
         except TimeoutError as err:
+            _LOGGER.warning(
+                "Zigbee2MQTT request '%s' timed out after %.0fs waiting for "
+                "%s/bridge/response/%s - the bridge may be slow to respond, "
+                "or this exact command may not be supported by this version "
+                "of Zigbee2MQTT",
+                command,
+                timeout,
+                self.base_topic,
+                command,
+            )
             raise Z2MRequestTimeoutError(command, transaction) from err
         finally:
             self._pending.pop((command, transaction), None)
 
         if response.get("status") != "ok":
-            raise Z2MRequestError(command, response.get("error", "unknown error"))
+            error = response.get("error", "unknown error")
+            _LOGGER.warning("Zigbee2MQTT request '%s' failed: %s", command, error)
+            raise Z2MRequestError(command, error)
         return response.get("data", {})
 
     async def async_permit_join(self, time_s: int, device: str | None = None) -> None:
@@ -348,6 +385,31 @@ class Z2MHub:
         """
         return await self._async_request(command, payload, timeout=timeout)
 
+    async def async_check_all_ota_updates(self) -> None:
+        """Check every known device (excluding the coordinator) for a firmware update.
+
+        Runs concurrently rather than one-at-a-time - Zigbee2MQTT serializes
+        the actual radio traffic on its end regardless, so there is no
+        benefit to waiting out one device's full timeout before even
+        starting the next. Each device's failure is logged and otherwise
+        ignored so one unresponsive device can't abort the whole sweep -
+        the resulting per-device OTA state still arrives independently via
+        Zigbee2MQTT's own state republish (see _handle_device_state).
+        """
+        ieee_addresses = [
+            ieee_address
+            for ieee_address, device in self.devices.items()
+            if device.type != COORDINATOR_DEVICE_TYPE
+        ]
+
+        async def _check_one(ieee_address: str) -> None:
+            try:
+                await self.async_ota_check(ieee_address)
+            except (Z2MRequestError, Z2MRequestTimeoutError) as err:
+                _LOGGER.warning("OTA check failed for %s: %s", ieee_address, err)
+
+        await asyncio.gather(*(_check_one(ieee_address) for ieee_address in ieee_addresses))
+
     async def _async_periodic_networkmap_refresh(self, _now: datetime) -> None:
         """Timer-driven refresh - logs and swallows failures rather than raising.
 
@@ -373,6 +435,28 @@ class Z2MHub:
                 timedelta(minutes=interval_minutes),
             )
 
+    async def _async_periodic_ota_check(self, _now: datetime) -> None:
+        """Timer-driven OTA sweep.
+
+        async_check_all_ota_updates already logs and swallows per-device
+        failures, so there is nothing further to catch here.
+        """
+        await self.async_check_all_ota_updates()
+
+    def _reschedule_ota_check_timer(self, interval_minutes: int) -> None:
+        """(Re)start the periodic OTA-check timer; 0 disables it."""
+        if self._ota_check_timer_unsub is not None:
+            self._ota_check_timer_unsub()
+            self._ota_check_timer_unsub = None
+
+        self._ota_check_interval_minutes = interval_minutes
+        if interval_minutes > 0:
+            self._ota_check_timer_unsub = async_track_time_interval(
+                self.hass,
+                self._async_periodic_ota_check,
+                timedelta(minutes=interval_minutes),
+            )
+
     async def async_update_options(self, options: dict[str, Any]) -> None:
         """Apply new options-flow values without requiring a reload."""
         self.permit_join_duration = options.get(CONF_PERMIT_JOIN_DURATION, self.permit_join_duration)
@@ -381,8 +465,15 @@ class Z2MHub:
         )
         self.networkmap_type = options.get(CONF_NETWORKMAP_TYPE, self.networkmap_type)
         self.networkmap_routes = options.get(CONF_NETWORKMAP_ROUTES, self.networkmap_routes)
+        self.battery_low_threshold_percent = options.get(
+            CONF_BATTERY_LOW_THRESHOLD_PERCENT, self.battery_low_threshold_percent
+        )
+        self.low_lqi_threshold = options.get(CONF_LOW_LQI_THRESHOLD, self.low_lqi_threshold)
         self._reschedule_networkmap_timer(
             options.get(CONF_NETWORKMAP_INTERVAL_MINUTES, DEFAULT_NETWORKMAP_INTERVAL_MINUTES)
+        )
+        self._reschedule_ota_check_timer(
+            options.get(CONF_OTA_CHECK_INTERVAL_MINUTES, DEFAULT_OTA_CHECK_INTERVAL_MINUTES)
         )
 
     def compute_offline_devices(self) -> list[OfflineDevice]:
@@ -392,37 +483,126 @@ class Z2MHub:
         exclusively via that signal; otherwise last_seen is compared against
         the configurable threshold. A device with neither signal is correctly
         omitted rather than guessed at.
+
+        The coordinator is excluded: it doesn't send Zigbee messages to
+        itself, so its last_seen (if Zigbee2MQTT reports one at all) rarely
+        if ever updates and would otherwise be perpetually misreported as
+        offline via the last_seen fallback - its actual connectivity is
+        already covered by the bridge connectivity sensor (bridge/state).
+
+        Each device's evaluation is wrapped individually: unexpected data
+        from one device (e.g. an unparseable timestamp) must not take down
+        the whole sensor for every other device too.
         """
         offline: list[OfflineDevice] = []
         now = dt_util.utcnow()
         threshold = timedelta(minutes=self.offline_threshold_minutes)
 
         for ieee_address, device in self.devices.items():
-            availability = self._device_availability.get(ieee_address)
-            if availability is not None:
-                if availability.state == "offline":
+            if device.type == COORDINATOR_DEVICE_TYPE:
+                continue
+            try:
+                availability = self._device_availability.get(ieee_address)
+                if availability is not None:
+                    if availability.state == "offline":
+                        offline.append(
+                            OfflineDevice(
+                                ieee_address=ieee_address,
+                                friendly_name=device.friendly_name,
+                                detection="availability",
+                                since=availability.since,
+                            )
+                        )
+                    continue
+
+                last_seen = self._device_last_seen.get(ieee_address)
+                if last_seen is not None and (now - last_seen) > threshold:
                     offline.append(
                         OfflineDevice(
                             ieee_address=ieee_address,
                             friendly_name=device.friendly_name,
-                            detection="availability",
-                            since=availability.since,
+                            detection="last_seen",
+                            since=last_seen,
                         )
                     )
-                continue
-
-            last_seen = self._device_last_seen.get(ieee_address)
-            if last_seen is not None and (now - last_seen) > threshold:
-                offline.append(
-                    OfflineDevice(
-                        ieee_address=ieee_address,
-                        friendly_name=device.friendly_name,
-                        detection="last_seen",
-                        since=last_seen,
-                    )
+            except Exception:
+                _LOGGER.warning(
+                    "Failed to evaluate offline status for %s", device.friendly_name, exc_info=True
                 )
 
         return offline
+
+    def compute_battery_low_devices(self) -> list[BatteryLowDevice]:
+        """Devices (excluding the coordinator, which has no battery) at or
+        below the configured battery threshold.
+        """
+        low_battery: list[BatteryLowDevice] = []
+        for ieee_address, device in self.devices.items():
+            if device.type == COORDINATOR_DEVICE_TYPE:
+                continue
+            battery = self._device_battery.get(ieee_address)
+            if battery is None:
+                continue
+            try:
+                if battery <= self.battery_low_threshold_percent:
+                    low_battery.append(
+                        BatteryLowDevice(
+                            ieee_address=ieee_address,
+                            friendly_name=device.friendly_name,
+                            battery=battery,
+                        )
+                    )
+            except Exception:
+                _LOGGER.warning(
+                    "Failed to evaluate battery level for %s", device.friendly_name, exc_info=True
+                )
+        return low_battery
+
+    def compute_low_lqi_devices(self) -> list[LowLqiDevice]:
+        """Devices (excluding the coordinator) at or below the configured
+        link-quality threshold.
+        """
+        low_lqi: list[LowLqiDevice] = []
+        for ieee_address, device in self.devices.items():
+            if device.type == COORDINATOR_DEVICE_TYPE:
+                continue
+            linkquality = self._device_linkquality.get(ieee_address)
+            if linkquality is None:
+                continue
+            try:
+                if linkquality <= self.low_lqi_threshold:
+                    low_lqi.append(
+                        LowLqiDevice(
+                            ieee_address=ieee_address,
+                            friendly_name=device.friendly_name,
+                            linkquality=linkquality,
+                        )
+                    )
+            except Exception:
+                _LOGGER.warning("Failed to evaluate link quality for %s", device.friendly_name, exc_info=True)
+        return low_lqi
+
+    def compute_ota_available_devices(self) -> list[OtaAvailableDevice]:
+        """Devices with a firmware update currently available.
+
+        The coordinator is not excluded here (unlike the other aggregate
+        sensors): some Zigbee adapters do support Zigbee2MQTT-managed
+        firmware updates, and there's no reason to hide that if Zigbee2MQTT
+        reports it.
+        """
+        available: list[OtaAvailableDevice] = []
+        for ieee_address, device in self.devices.items():
+            ota_state = self.device_ota.get(ieee_address)
+            if ota_state is None:
+                continue
+            try:
+                if ota_state.state == "available":
+                    available.append(
+                        OtaAvailableDevice(ieee_address=ieee_address, friendly_name=device.friendly_name)
+                    )
+            except Exception:
+                _LOGGER.warning("Failed to evaluate OTA state for %s", device.friendly_name, exc_info=True)
+        return available
 
     # --- Device-link reconciliation ------------------------------------------
 
@@ -569,20 +749,38 @@ class Z2MHub:
             self._device_last_seen[ieee_address] = last_seen
             async_dispatcher_send(self.hass, signal_offline_candidates_changed(self.entry_id), None)
 
-        update_payload = payload.get("update")
-        if not isinstance(update_payload, dict):
-            return
+        # battery/linkquality/update are independent, optional fields - a
+        # device without one shouldn't skip the others (this used to return
+        # early on a missing "update" key, which silently dropped
+        # battery/linkquality for every device that doesn't report OTA data).
+        metrics_changed = False
 
-        self.device_ota[ieee_address] = DeviceOtaState(
-            state=update_payload.get("state"),
-            progress=update_payload.get("progress"),
-            remaining_time=update_payload.get("remaining_time"),
-        )
-        async_dispatcher_send(
-            self.hass,
-            signal_device_state(self.entry_id, ieee_address),
-            self.device_ota[ieee_address],
-        )
+        battery = payload.get("battery")
+        if isinstance(battery, (int, float)):
+            self._device_battery[ieee_address] = int(battery)
+            metrics_changed = True
+
+        linkquality = payload.get("linkquality")
+        if isinstance(linkquality, (int, float)):
+            self._device_linkquality[ieee_address] = int(linkquality)
+            metrics_changed = True
+
+        update_payload = payload.get("update")
+        if isinstance(update_payload, dict):
+            self.device_ota[ieee_address] = DeviceOtaState(
+                state=update_payload.get("state"),
+                progress=update_payload.get("progress"),
+                remaining_time=update_payload.get("remaining_time"),
+            )
+            async_dispatcher_send(
+                self.hass,
+                signal_device_state(self.entry_id, ieee_address),
+                self.device_ota[ieee_address],
+            )
+            metrics_changed = True
+
+        if metrics_changed:
+            async_dispatcher_send(self.hass, signal_device_metrics_changed(self.entry_id), None)
 
     @callback
     def _handle_device_availability(self, msg: mqtt.ReceiveMessage) -> None:
@@ -673,6 +871,16 @@ def _parse_last_seen(value: Any) -> datetime | None:
 
     Z2M can be set to omit it (None), or to emit ISO 8601 / ISO 8601 local
     (str) or epoch seconds (int/float) - handle all of these.
+
+    Must always return a timezone-aware datetime: the "local" string format
+    has no UTC offset and parses as naive, and comparing a naive datetime
+    against dt_util.utcnow() in compute_offline_devices() raises TypeError
+    ("can't subtract offset-naive and offset-aware datetimes"). That
+    exception used to propagate out of the offline-devices sensor's
+    native_value, leaving it stuck at "unknown" indefinitely - since the
+    sensor never gets to call async_write_ha_state() successfully, nothing
+    short of restarting Zigbee2MQTT (and getting lucky that the next
+    payload happens not to trigger it) would clear it.
     """
     if value is None:
         return None
@@ -681,5 +889,8 @@ def _parse_last_seen(value: Any) -> datetime | None:
         # milliseconds, despite that being the more common JS convention.
         return dt_util.utc_from_timestamp(value)
     if isinstance(value, str):
-        return dt_util.parse_datetime(value)
+        parsed = dt_util.parse_datetime(value)
+        # as_local treats a naive value as already being in HA's configured
+        # local timezone, which is exactly what "ISO_8601_local" means.
+        return dt_util.as_local(parsed) if parsed is not None else None
     return None

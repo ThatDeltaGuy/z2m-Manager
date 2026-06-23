@@ -30,6 +30,7 @@ def hub(hass: HomeAssistant) -> Z2MHub:
         "0xAAA": Z2MDevice(ieee_address="0xAAA", friendly_name="has_availability"),
         "0xBBB": Z2MDevice(ieee_address="0xBBB", friendly_name="last_seen_only"),
         "0xCCC": Z2MDevice(ieee_address="0xCCC", friendly_name="no_signal_at_all"),
+        "0xCOORD": Z2MDevice(ieee_address="0xCOORD", friendly_name="Coordinator", type="Coordinator"),
     }
     return instance
 
@@ -111,3 +112,46 @@ def test_since_resets_on_actual_transition(hub: Z2MHub) -> None:
     hub._handle_device_availability(_msg(topic, json.dumps({"state": "offline"})))
 
     assert hub._device_availability["0xAAA"].since != stale_since
+
+
+def test_coordinator_excluded_even_with_stale_last_seen(hub: Z2MHub) -> None:
+    """Regression test: the coordinator's last_seen rarely updates (it doesn't
+    send Zigbee messages to itself), so the last_seen fallback would
+    otherwise perpetually misreport it as offline - its connectivity is
+    already covered by the bridge connectivity sensor.
+    """
+    hub._device_last_seen["0xCOORD"] = dt_util.utcnow() - timedelta(days=30)
+
+    offline = hub.compute_offline_devices()
+
+    assert all(device.ieee_address != "0xCOORD" for device in offline)
+
+
+def test_naive_last_seen_string_does_not_crash(hub: Z2MHub) -> None:
+    """Regression test: Zigbee2MQTT's "ISO_8601_local" last_seen format has no
+    UTC offset, so dt_util.parse_datetime returns a naive datetime.
+    Previously, comparing that against the aware dt_util.utcnow() raised
+    TypeError from inside native_value, which left the offline-devices
+    sensor stuck at "unknown" indefinitely (it never wrote state
+    successfully even once).
+    """
+    topic = f"{BASE_TOPIC}/last_seen_only"
+    # No UTC offset - this is what used to crash compute_offline_devices().
+    hub._handle_device_state(_msg(topic, json.dumps({"last_seen": "2020-01-01T00:00:00.000"})))
+
+    offline = hub.compute_offline_devices()  # must not raise
+
+    assert any(device.ieee_address == "0xBBB" for device in offline)
+
+
+def test_one_bad_device_does_not_hide_others(hub: Z2MHub) -> None:
+    """Regression test: a single device with unexpected data must not take
+    down the whole aggregate - other devices' offline status must still be
+    reported.
+    """
+    hub._device_last_seen["0xBBB"] = "not a datetime"  # malformed - would raise on subtraction
+    hub._device_availability["0xAAA"] = DeviceAvailability(state="offline", since=dt_util.utcnow())
+
+    offline = hub.compute_offline_devices()  # must not raise
+
+    assert any(device.ieee_address == "0xAAA" for device in offline)

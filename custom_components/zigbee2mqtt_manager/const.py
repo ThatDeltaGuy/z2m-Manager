@@ -16,6 +16,9 @@ CONF_NETWORKMAP_INTERVAL_MINUTES = "networkmap_interval_minutes"
 CONF_NETWORKMAP_TYPE = "networkmap_type"
 CONF_NETWORKMAP_ROUTES = "networkmap_routes"
 CONF_PERMIT_JOIN_DURATION = "permit_join_duration"
+CONF_BATTERY_LOW_THRESHOLD_PERCENT = "battery_low_threshold_percent"
+CONF_LOW_LQI_THRESHOLD = "low_lqi_threshold"
+CONF_OTA_CHECK_INTERVAL_MINUTES = "ota_check_interval_minutes"
 
 # Defaults
 DEFAULT_BASE_TOPIC = "zigbee2mqtt"
@@ -24,9 +27,21 @@ DEFAULT_NETWORKMAP_INTERVAL_MINUTES = 60
 DEFAULT_NETWORKMAP_TYPE = "raw"
 DEFAULT_NETWORKMAP_ROUTES = False
 DEFAULT_PERMIT_JOIN_DURATION = 254
+DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT = 15
+DEFAULT_LOW_LQI_THRESHOLD = 50
+DEFAULT_OTA_CHECK_INTERVAL_MINUTES = 0
 
 NETWORKMAP_TYPES = ["raw", "graphviz", "plantuml"]
 LOG_LEVELS = ["debug", "info", "warning", "error"]
+
+# Zigbee2MQTT's bridge/devices "type" value for the coordinator itself. It
+# has no battery, no meaningful self-referential link quality, and its
+# online/offline status is already covered by the bridge connectivity sensor
+# (bridge/state) - so it's excluded from the offline/battery/LQI aggregate
+# sensors, which would otherwise misreport it via a perpetually-stale
+# last_seen (coordinators don't send Zigbee messages to themselves, so
+# last_seen for the coordinator entry rarely if ever updates).
+COORDINATOR_DEVICE_TYPE = "Coordinator"
 
 # Bridge request command names (published to "<base_topic>/bridge/request/<command>")
 CMD_PERMIT_JOIN = "permit_join"
@@ -41,7 +56,10 @@ CMD_DEVICE_OTA_UPDATE = "device/ota_update/update"
 
 # Request timeouts (seconds)
 REQUEST_TIMEOUT_DEFAULT = 10.0
-REQUEST_TIMEOUT_NETWORKMAP = 30.0
+# Generating a network map (especially with routes=true) can take well over
+# 30s on a larger mesh - 30s was too tight in practice and caused refreshes
+# to silently time out.
+REQUEST_TIMEOUT_NETWORKMAP = 90.0
 REQUEST_TIMEOUT_OTA_CHECK = 30.0
 REQUEST_TIMEOUT_OTA_UPDATE = 600.0
 MQTT_CLIENT_WAIT_TIMEOUT = 10.0
@@ -111,3 +129,14 @@ def signal_offline_candidates_changed(entry_id: str) -> str:
     every individual device's own signal.
     """
     return f"{DOMAIN}_{entry_id}_offline_candidates_changed"
+
+
+def signal_device_metrics_changed(entry_id: str) -> str:
+    """Bridge-wide signal: a device's battery, link quality, or OTA state changed.
+
+    Shared by the battery-low, low-LQI, and OTA-available aggregate sensors,
+    the same way signal_offline_candidates_changed is shared by the
+    offline-devices sensor - avoids each of those subscribing to every
+    individual device's own per-device signal.
+    """
+    return f"{DOMAIN}_{entry_id}_device_metrics_changed"
