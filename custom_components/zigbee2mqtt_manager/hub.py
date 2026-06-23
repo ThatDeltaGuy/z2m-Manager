@@ -53,7 +53,6 @@ from .const import (
     signal_device_availability,
     signal_device_linkable,
     signal_device_metrics_changed,
-    signal_device_state,
     signal_device_unlinkable,
     signal_devices,
     signal_networkmap,
@@ -767,15 +766,13 @@ class Z2MHub:
 
         update_payload = payload.get("update")
         if isinstance(update_payload, dict):
+            # Tracked for the bridge-level OTA-available aggregate sensor
+            # only - there's no per-device update entity here, since
+            # Zigbee2MQTT's own MQTT discovery already provides one.
             self.device_ota[ieee_address] = DeviceOtaState(
                 state=update_payload.get("state"),
                 progress=update_payload.get("progress"),
                 remaining_time=update_payload.get("remaining_time"),
-            )
-            async_dispatcher_send(
-                self.hass,
-                signal_device_state(self.entry_id, ieee_address),
-                self.device_ota[ieee_address],
             )
             metrics_changed = True
 

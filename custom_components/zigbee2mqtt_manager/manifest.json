@@ -1,6 +1,6 @@
 {
   "domain": "zigbee2mqtt_manager",
-  "name": "Zigbee2MQTT Manager",
+  "name": "zigbee2mqtt manager",
   "codeowners": ["@ThatDeltaGuy"],
   "config_flow": true,
   "dependencies": ["mqtt"],

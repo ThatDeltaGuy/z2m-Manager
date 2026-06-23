@@ -101,11 +101,6 @@
       "check_all_ota_updates": {
         "name": "Check for firmware updates"
       }
-    },
-    "update": {
-      "ota_update": {
-        "name": "Firmware"
-      }
     }
   },
   "services": {

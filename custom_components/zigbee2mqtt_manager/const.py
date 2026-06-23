@@ -100,11 +100,6 @@ def signal_networkmap(entry_id: str) -> str:
     return f"{DOMAIN}_{entry_id}_networkmap"
 
 
-def signal_device_state(entry_id: str, ieee_address: str) -> str:
-    """Signal fired when a specific device's state topic updates."""
-    return f"{DOMAIN}_{entry_id}_device_{ieee_address}_state"
-
-
 def signal_device_availability(entry_id: str, ieee_address: str) -> str:
     """Signal fired when a specific device's availability topic updates."""
     return f"{DOMAIN}_{entry_id}_device_{ieee_address}_availability"
