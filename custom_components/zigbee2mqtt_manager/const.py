@@ -64,9 +64,8 @@ CMD_DEVICE_OTA_UPDATE = "device/ota_update/update"
 # Request timeouts (seconds)
 REQUEST_TIMEOUT_DEFAULT = 10.0
 # Generating a network map (especially with routes=true) can take well over
-# 30s on a larger mesh - 30s was too tight in practice and caused refreshes
-# to silently time out.
-REQUEST_TIMEOUT_NETWORKMAP = 90.0
+# 90s on a larger mesh
+REQUEST_TIMEOUT_NETWORKMAP = 300.0
 REQUEST_TIMEOUT_OTA_CHECK = 30.0
 REQUEST_TIMEOUT_OTA_UPDATE = 600.0
 MQTT_CLIENT_WAIT_TIMEOUT = 10.0

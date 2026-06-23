@@ -376,6 +376,9 @@ class Z2MHub:
             },
             timeout=REQUEST_TIMEOUT_NETWORKMAP,
         )
+        return self._apply_networkmap_data(data)
+
+    def _apply_networkmap_data(self, data: dict[str, Any]) -> NetworkMapResult:
         result = NetworkMapResult(
             refreshed_at=dt_util.utcnow(),
             type=data.get("type", self.networkmap_type),
@@ -869,11 +872,28 @@ class Z2MHub:
             # Expected for retained/duplicate deliveries, responses to requests
             # we already timed out on, or transactions sent by something else
             # entirely (e.g. the Zigbee2MQTT frontend) - not an error.
-            _LOGGER.debug(
-                "Discarding unmatched bridge response for '%s' (transaction=%s)",
-                command,
-                transaction,
-            )
+            #
+            # networkmap is the one exception: on a large mesh (especially
+            # with routes=true) it can take longer than even
+            # REQUEST_TIMEOUT_NETWORKMAP to respond, and the data is still
+            # worth applying once it finally arrives even though the
+            # original request (and the button press awaiting it) already
+            # timed out - otherwise the networkmap sensor is stuck at
+            # "unknown" forever despite Zigbee2MQTT actually responding.
+            if future is None and command == CMD_NETWORKMAP and payload.get("status") == "ok":
+                _LOGGER.info(
+                    "Applying a Zigbee2MQTT networkmap response that arrived after "
+                    "its request had already timed out (transaction=%s) - consider "
+                    "raising REQUEST_TIMEOUT_NETWORKMAP if this happens often",
+                    transaction,
+                )
+                self._apply_networkmap_data(payload.get("data", {}))
+            else:
+                _LOGGER.debug(
+                    "Discarding unmatched bridge response for '%s' (transaction=%s)",
+                    command,
+                    transaction,
+                )
             return
         future.set_result(payload)
 
