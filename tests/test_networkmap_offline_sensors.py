@@ -61,6 +61,11 @@ async def test_networkmap_sensor_state_and_attributes_after_refresh(
     assert state.state != "unknown"
     assert state.attributes["type"] == "raw"
     assert state.attributes["value"] == {"nodes": [{"ieeeAddr": "0xAAA"}], "links": []}
+    # nodes/links are also spread as top-level attributes (not just nested
+    # under "value") to match the long-standing community MQTT-template-
+    # sensor convention that existing Lovelace network-map cards expect.
+    assert state.attributes["nodes"] == [{"ieeeAddr": "0xAAA"}]
+    assert state.attributes["links"] == []
 
 
 @pytest.mark.parametrize("expected_lingering_timers", [True])
