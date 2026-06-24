@@ -169,6 +169,6 @@ def test_reschedule_timer_cancels_previous(hass: HomeAssistant) -> None:
     second_unsub = hub._networkmap_timer_unsub
 
     assert first_unsub is not second_unsub
-    assert hub._networkmap_interval_minutes == 10
+    assert hub._networkmap_interval_hours == 10
 
     hub._reschedule_networkmap_timer(0)  # cleanup so no real timer lingers

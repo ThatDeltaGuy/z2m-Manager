@@ -12,26 +12,26 @@ CONF_NAME = "name"
 
 # Options keys (mutable via the options flow)
 CONF_OFFLINE_THRESHOLD_MINUTES = "offline_threshold_minutes"
-CONF_NETWORKMAP_INTERVAL_MINUTES = "networkmap_interval_minutes"
+CONF_NETWORKMAP_INTERVAL_HOURS = "networkmap_interval_hours"
 CONF_NETWORKMAP_TYPE = "networkmap_type"
 CONF_NETWORKMAP_ROUTES = "networkmap_routes"
 CONF_PERMIT_JOIN_DURATION = "permit_join_duration"
 CONF_BATTERY_LOW_THRESHOLD_PERCENT = "battery_low_threshold_percent"
 CONF_LOW_LQI_THRESHOLD = "low_lqi_threshold"
-CONF_OTA_CHECK_INTERVAL_MINUTES = "ota_check_interval_minutes"
+CONF_OTA_CHECK_INTERVAL_DAYS = "ota_check_interval_days"
 CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT = "remove_button_enabled_by_default"
 CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT = "reinterview_button_enabled_by_default"
 
 # Defaults
 DEFAULT_BASE_TOPIC = "zigbee2mqtt"
 DEFAULT_OFFLINE_THRESHOLD_MINUTES = 15
-DEFAULT_NETWORKMAP_INTERVAL_MINUTES = 60
+DEFAULT_NETWORKMAP_INTERVAL_HOURS = 1
 DEFAULT_NETWORKMAP_TYPE = "raw"
 DEFAULT_NETWORKMAP_ROUTES = False
 DEFAULT_PERMIT_JOIN_DURATION = 254
 DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT = 15
 DEFAULT_LOW_LQI_THRESHOLD = 50
-DEFAULT_OTA_CHECK_INTERVAL_MINUTES = 0
+DEFAULT_OTA_CHECK_INTERVAL_DAYS = 1
 # Both False: remove/re-interview default to disabled in the entity
 # registry so they can't be pressed by accident from a dashboard - the user
 # can flip either back on per-instance via the options flow.

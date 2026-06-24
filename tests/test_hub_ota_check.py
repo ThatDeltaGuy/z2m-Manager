@@ -129,7 +129,7 @@ def test_reschedule_ota_check_timer_cancels_previous(hass: HomeAssistant) -> Non
     second_unsub = hub._ota_check_timer_unsub
 
     assert first_unsub is not second_unsub
-    assert hub._ota_check_interval_minutes == 120
+    assert hub._ota_check_interval_days == 120
 
     hub._reschedule_ota_check_timer(0)  # cleanup so no real timer lingers
 

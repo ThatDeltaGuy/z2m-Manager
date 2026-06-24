@@ -15,7 +15,9 @@ from urllib.parse import quote
 from homeassistant.components.image import ImageEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import Z2MManagerConfigEntry
 from .const import signal_device_linkable, signal_device_unlinkable, signal_devices
@@ -113,9 +115,16 @@ class Z2MDeviceImageEntity(Z2MLinkedDeviceEntity, ImageEntity):
     """
 
     _attr_translation_key = "device_image"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, hub: Z2MHub, ieee_address: str, ha_device_id: str, definition_model: str) -> None:
         Z2MLinkedDeviceEntity.__init__(self, hub, ieee_address, ha_device_id)
         ImageEntity.__init__(self, hub.hass)
         self._attr_unique_id = f"{hub.entry_id}_{ieee_address}_image"
         self._attr_image_url = _device_image_url(definition_model)
+        # ImageEntity.state is derived from this (it's @final, so it can't
+        # be overridden directly) - without it the entity's state just
+        # shows "unknown" forever, even though the image itself is valid.
+        # The image URL is fixed at construction time (see class docstring),
+        # so "now" at construction is the one and only meaningful update.
+        self._attr_image_last_updated = dt_util.utcnow()
