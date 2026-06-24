@@ -27,22 +27,22 @@ from .const import (
     CMD_RESTART,
     CONF_BATTERY_LOW_THRESHOLD_PERCENT,
     CONF_LOW_LQI_THRESHOLD,
-    CONF_NETWORKMAP_INTERVAL_MINUTES,
+    CONF_NETWORKMAP_INTERVAL_HOURS,
     CONF_NETWORKMAP_ROUTES,
     CONF_NETWORKMAP_TYPE,
     CONF_OFFLINE_THRESHOLD_MINUTES,
-    CONF_OTA_CHECK_INTERVAL_MINUTES,
+    CONF_OTA_CHECK_INTERVAL_DAYS,
     CONF_PERMIT_JOIN_DURATION,
     CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
     CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
     COORDINATOR_DEVICE_TYPE,
     DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
     DEFAULT_LOW_LQI_THRESHOLD,
-    DEFAULT_NETWORKMAP_INTERVAL_MINUTES,
+    DEFAULT_NETWORKMAP_INTERVAL_HOURS,
     DEFAULT_NETWORKMAP_ROUTES,
     DEFAULT_NETWORKMAP_TYPE,
     DEFAULT_OFFLINE_THRESHOLD_MINUTES,
-    DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
+    DEFAULT_OTA_CHECK_INTERVAL_DAYS,
     DEFAULT_PERMIT_JOIN_DURATION,
     DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
     DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
@@ -123,12 +123,12 @@ class Z2MHub:
         *,
         permit_join_duration: int = DEFAULT_PERMIT_JOIN_DURATION,
         offline_threshold_minutes: int = DEFAULT_OFFLINE_THRESHOLD_MINUTES,
-        networkmap_interval_minutes: int = 0,
+        networkmap_interval_hours: int = 0,
         networkmap_type: str = DEFAULT_NETWORKMAP_TYPE,
         networkmap_routes: bool = DEFAULT_NETWORKMAP_ROUTES,
         battery_low_threshold_percent: int = DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT,
         low_lqi_threshold: int = DEFAULT_LOW_LQI_THRESHOLD,
-        ota_check_interval_minutes: int = DEFAULT_OTA_CHECK_INTERVAL_MINUTES,
+        ota_check_interval_days: int = 0,
         remove_button_enabled_by_default: bool = DEFAULT_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
         reinterview_button_enabled_by_default: bool = DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT,
     ) -> None:
@@ -161,9 +161,9 @@ class Z2MHub:
         self._device_last_seen: dict[str, datetime] = {}
         self._device_battery: dict[str, int] = {}
         self._device_linkquality: dict[str, int] = {}
-        self._networkmap_interval_minutes = networkmap_interval_minutes
+        self._networkmap_interval_hours = networkmap_interval_hours
         self._networkmap_timer_unsub: Any = None
-        self._ota_check_interval_minutes = ota_check_interval_minutes
+        self._ota_check_interval_days = ota_check_interval_days
         self._ota_check_timer_unsub: Any = None
 
         # device_id -> ieee_address, maintained for free during link
@@ -223,8 +223,8 @@ class Z2MHub:
             )
         )
 
-        self._reschedule_networkmap_timer(self._networkmap_interval_minutes)
-        self._reschedule_ota_check_timer(self._ota_check_interval_minutes)
+        self._reschedule_networkmap_timer(self._networkmap_interval_hours)
+        self._reschedule_ota_check_timer(self._ota_check_interval_days)
 
     async def async_unload(self) -> None:
         """Unsubscribe from every topic and cancel any in-flight requests."""
@@ -436,18 +436,18 @@ class Z2MHub:
         except (Z2MRequestError, Z2MRequestTimeoutError) as err:
             _LOGGER.warning("Periodic network map refresh failed: %s", err)
 
-    def _reschedule_networkmap_timer(self, interval_minutes: int) -> None:
+    def _reschedule_networkmap_timer(self, interval_hours: int) -> None:
         """(Re)start the periodic refresh timer; 0 disables it."""
         if self._networkmap_timer_unsub is not None:
             self._networkmap_timer_unsub()
             self._networkmap_timer_unsub = None
 
-        self._networkmap_interval_minutes = interval_minutes
-        if interval_minutes > 0:
+        self._networkmap_interval_hours = interval_hours
+        if interval_hours > 0:
             self._networkmap_timer_unsub = async_track_time_interval(
                 self.hass,
                 self._async_periodic_networkmap_refresh,
-                timedelta(minutes=interval_minutes),
+                timedelta(hours=interval_hours),
             )
 
     async def _async_periodic_ota_check(self, _now: datetime) -> None:
@@ -458,18 +458,18 @@ class Z2MHub:
         """
         await self.async_check_all_ota_updates()
 
-    def _reschedule_ota_check_timer(self, interval_minutes: int) -> None:
+    def _reschedule_ota_check_timer(self, interval_days: int) -> None:
         """(Re)start the periodic OTA-check timer; 0 disables it."""
         if self._ota_check_timer_unsub is not None:
             self._ota_check_timer_unsub()
             self._ota_check_timer_unsub = None
 
-        self._ota_check_interval_minutes = interval_minutes
-        if interval_minutes > 0:
+        self._ota_check_interval_days = interval_days
+        if interval_days > 0:
             self._ota_check_timer_unsub = async_track_time_interval(
                 self.hass,
                 self._async_periodic_ota_check,
-                timedelta(minutes=interval_minutes),
+                timedelta(days=interval_days),
             )
 
     async def async_update_options(self, options: dict[str, Any]) -> None:
@@ -491,10 +491,10 @@ class Z2MHub:
             CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT, self.reinterview_button_enabled_by_default
         )
         self._reschedule_networkmap_timer(
-            options.get(CONF_NETWORKMAP_INTERVAL_MINUTES, DEFAULT_NETWORKMAP_INTERVAL_MINUTES)
+            options.get(CONF_NETWORKMAP_INTERVAL_HOURS, DEFAULT_NETWORKMAP_INTERVAL_HOURS)
         )
         self._reschedule_ota_check_timer(
-            options.get(CONF_OTA_CHECK_INTERVAL_MINUTES, DEFAULT_OTA_CHECK_INTERVAL_MINUTES)
+            options.get(CONF_OTA_CHECK_INTERVAL_DAYS, DEFAULT_OTA_CHECK_INTERVAL_DAYS)
         )
 
     def compute_offline_devices(self) -> list[OfflineDevice]:
