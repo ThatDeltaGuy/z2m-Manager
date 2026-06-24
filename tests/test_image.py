@@ -14,6 +14,8 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity import EntityCategory
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_mqtt_message
 
 from custom_components.zigbee2mqtt_manager.const import LINK_RECONCILE_DEBOUNCE
@@ -66,6 +68,11 @@ async def test_image_entity_created_with_correct_url_once_model_known(
     state = hass.states.get(IMAGE_ENTITY_ID)
     assert state is not None
     assert state.attributes["entity_picture"].startswith("/api/image_proxy/" + IMAGE_ENTITY_ID)
+    # ImageEntity's state is its image_last_updated timestamp - without
+    # setting that explicitly it would just be "unknown" forever even
+    # though the image itself is perfectly valid.
+    assert state.state != "unknown"
+    dt_util.parse_datetime(state.state)  # raises if not a real timestamp
 
     # device_id attachment happens at platform-setup time (see
     # entity.async_attach_to_linked_device), not in async_added_to_hass -
@@ -73,6 +80,7 @@ async def test_image_entity_created_with_correct_url_once_model_known(
     # for an entity disabled by default.
     entry = er.async_get(hass).async_get(IMAGE_ENTITY_ID)
     assert entry.device_id == _target_device.id
+    assert entry.entity_category == EntityCategory.DIAGNOSTIC
 
 
 @pytest.mark.parametrize("expected_lingering_timers", [True])
