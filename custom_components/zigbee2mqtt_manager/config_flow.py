@@ -50,12 +50,33 @@ def _options_schema_dict(defaults: dict[str, Any]) -> dict[Any, Any]:
     drift out of sync.
     """
     return {
+        # Thresholds first: offline, battery, low link quality.
         vol.Optional(
             CONF_OFFLINE_THRESHOLD_MINUTES,
             default=defaults.get(CONF_OFFLINE_THRESHOLD_MINUTES, DEFAULT_OFFLINE_THRESHOLD_MINUTES),
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(min=1, mode=selector.NumberSelectorMode.BOX)
         ),
+        vol.Optional(
+            CONF_BATTERY_LOW_THRESHOLD_PERCENT,
+            default=defaults.get(CONF_BATTERY_LOW_THRESHOLD_PERCENT, DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(
+            CONF_LOW_LQI_THRESHOLD,
+            default=defaults.get(CONF_LOW_LQI_THRESHOLD, DEFAULT_LOW_LQI_THRESHOLD),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=255, mode=selector.NumberSelectorMode.BOX)
+        ),
+        # OTA check interval.
+        vol.Optional(
+            CONF_OTA_CHECK_INTERVAL_DAYS,
+            default=defaults.get(CONF_OTA_CHECK_INTERVAL_DAYS, DEFAULT_OTA_CHECK_INTERVAL_DAYS),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, mode=selector.NumberSelectorMode.BOX)
+        ),
+        # Network map options, interval first.
         vol.Optional(
             CONF_NETWORKMAP_INTERVAL_HOURS,
             default=defaults.get(CONF_NETWORKMAP_INTERVAL_HOURS, DEFAULT_NETWORKMAP_INTERVAL_HOURS),
@@ -70,30 +91,7 @@ def _options_schema_dict(defaults: dict[str, Any]) -> dict[Any, Any]:
             CONF_NETWORKMAP_ROUTES,
             default=defaults.get(CONF_NETWORKMAP_ROUTES, DEFAULT_NETWORKMAP_ROUTES),
         ): selector.BooleanSelector(),
-        vol.Optional(
-            CONF_PERMIT_JOIN_DURATION,
-            default=defaults.get(CONF_PERMIT_JOIN_DURATION, DEFAULT_PERMIT_JOIN_DURATION),
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(min=1, max=254, mode=selector.NumberSelectorMode.BOX)
-        ),
-        vol.Optional(
-            CONF_BATTERY_LOW_THRESHOLD_PERCENT,
-            default=defaults.get(CONF_BATTERY_LOW_THRESHOLD_PERCENT, DEFAULT_BATTERY_LOW_THRESHOLD_PERCENT),
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
-        ),
-        vol.Optional(
-            CONF_LOW_LQI_THRESHOLD,
-            default=defaults.get(CONF_LOW_LQI_THRESHOLD, DEFAULT_LOW_LQI_THRESHOLD),
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(min=0, max=255, mode=selector.NumberSelectorMode.BOX)
-        ),
-        vol.Optional(
-            CONF_OTA_CHECK_INTERVAL_DAYS,
-            default=defaults.get(CONF_OTA_CHECK_INTERVAL_DAYS, DEFAULT_OTA_CHECK_INTERVAL_DAYS),
-        ): selector.NumberSelector(
-            selector.NumberSelectorConfig(min=0, mode=selector.NumberSelectorMode.BOX)
-        ),
+        # Enable-by-default toggles for the per-device buttons.
         vol.Optional(
             CONF_REMOVE_BUTTON_ENABLED_BY_DEFAULT,
             default=defaults.get(
@@ -106,6 +104,13 @@ def _options_schema_dict(defaults: dict[str, Any]) -> dict[Any, Any]:
                 CONF_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT, DEFAULT_REINTERVIEW_BUTTON_ENABLED_BY_DEFAULT
             ),
         ): selector.BooleanSelector(),
+        # Default permit-join duration last.
+        vol.Optional(
+            CONF_PERMIT_JOIN_DURATION,
+            default=defaults.get(CONF_PERMIT_JOIN_DURATION, DEFAULT_PERMIT_JOIN_DURATION),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=254, mode=selector.NumberSelectorMode.BOX)
+        ),
     }
 
 
