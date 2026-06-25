@@ -776,9 +776,7 @@ class Z2MHub:
             async_dispatcher_send(self.hass, signal_offline_candidates_changed(self.entry_id), None)
 
         # battery/linkquality/update are independent, optional fields - a
-        # device without one shouldn't skip the others (this used to return
-        # early on a missing "update" key, which silently dropped
-        # battery/linkquality for every device that doesn't report OTA data).
+        # device without one shouldn't skip the others.
         metrics_changed = False
 
         battery = payload.get("battery")
@@ -869,17 +867,8 @@ class Z2MHub:
         transaction = payload.get("transaction")
         future = self._pending.get((command, transaction))
         if future is None or future.done():
-            # Expected for retained/duplicate deliveries, responses to requests
-            # we already timed out on, or transactions sent by something else
-            # entirely (e.g. the Zigbee2MQTT frontend) - not an error.
-            #
-            # networkmap is the one exception: on a large mesh (especially
-            # with routes=true) it can take longer than even
-            # REQUEST_TIMEOUT_NETWORKMAP to respond, and the data is still
-            # worth applying once it finally arrives even though the
-            # original request (and the button press awaiting it) already
-            # timed out - otherwise the networkmap sensor is stuck at
-            # "unknown" forever despite Zigbee2MQTT actually responding.
+            # A networkmap response can arrive after its own request timed
+            # out on a large mesh - still apply it rather than discard it.
             if future is None and command == CMD_NETWORKMAP and payload.get("status") == "ok":
                 _LOGGER.info(
                     "Applying a Zigbee2MQTT networkmap response that arrived after "
@@ -916,12 +905,7 @@ def _parse_last_seen(value: Any) -> datetime | None:
     Must always return a timezone-aware datetime: the "local" string format
     has no UTC offset and parses as naive, and comparing a naive datetime
     against dt_util.utcnow() in compute_offline_devices() raises TypeError
-    ("can't subtract offset-naive and offset-aware datetimes"). That
-    exception used to propagate out of the offline-devices sensor's
-    native_value, leaving it stuck at "unknown" indefinitely - since the
-    sensor never gets to call async_write_ha_state() successfully, nothing
-    short of restarting Zigbee2MQTT (and getting lucky that the next
-    payload happens not to trigger it) would clear it.
+    ("can't subtract offset-naive and offset-aware datetimes").
     """
     if value is None:
         return None

@@ -14,8 +14,13 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Z2MManagerConfigEntry
-from .const import signal_device_linkable
-from .entity import Z2MBridgeEntity, Z2MLinkedDeviceEntity, async_attach_to_linked_device
+from .const import signal_device_linkable, signal_device_unlinkable
+from .entity import (
+    Z2MBridgeEntity,
+    Z2MLinkedDeviceEntity,
+    async_attach_to_linked_device,
+    async_remove_if_disabled,
+)
 from .hub import Z2MHub
 from .models import DeviceLinkedPayload
 
@@ -41,8 +46,18 @@ async def async_setup_entry(
                 hass, platform="button", unique_id=button.unique_id, ha_device_id=payload.ha_device_id
             )
 
+    @callback
+    def _async_device_unlinkable(ieee_address: str) -> None:
+        for suffix in ("remove", "reinterview"):
+            async_remove_if_disabled(
+                hass, platform="button", unique_id=f"{hub.entry_id}_{ieee_address}_{suffix}"
+            )
+
     entry.async_on_unload(
         async_dispatcher_connect(hass, signal_device_linkable(hub.entry_id), _async_device_linkable)
+    )
+    entry.async_on_unload(
+        async_dispatcher_connect(hass, signal_device_unlinkable(hub.entry_id), _async_device_unlinkable)
     )
 
     already_linked = [

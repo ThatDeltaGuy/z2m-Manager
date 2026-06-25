@@ -196,6 +196,26 @@ async def test_entities_disappear_when_device_becomes_unlinkable(
 
 
 @pytest.mark.parametrize("expected_lingering_timers", [True])
+async def test_enabled_entities_disappear_when_device_becomes_unlinkable(
+    hass: HomeAssistant, mqtt_mock, linked_setup_buttons_enabled
+) -> None:
+    _entry, target_device = linked_setup_buttons_enabled
+    registry = er.async_get(hass)
+    assert registry.async_get(REMOVE_ENTITY_ID) is not None
+
+    dr.async_get(hass).async_remove_device(target_device.id)
+    async_fire_mqtt_message(
+        hass,
+        "zigbee2mqtt/bridge/devices",
+        json.dumps([{"ieee_address": IEEE_ADDRESS, "friendly_name": FRIENDLY_NAME}]),
+    )
+    await asyncio.sleep(SETTLE_SECONDS)
+
+    for entity_id in (REMOVE_ENTITY_ID, REINTERVIEW_ENTITY_ID):
+        assert registry.async_get(entity_id) is None
+
+
+@pytest.mark.parametrize("expected_lingering_timers", [True])
 async def test_remove_button_publishes_soft_remove(
     hass: HomeAssistant, mqtt_mock, linked_setup_buttons_enabled
 ) -> None:

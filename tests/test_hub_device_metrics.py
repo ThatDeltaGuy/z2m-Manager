@@ -112,10 +112,6 @@ def test_ota_available_does_not_exclude_coordinator(hub: Z2MHub) -> None:
 
 
 async def test_battery_and_linkquality_update_without_an_update_key(hass: HomeAssistant, hub: Z2MHub) -> None:
-    """Regression test: this handler used to return early when "update" was
-    absent, silently dropping battery/linkquality for every device that
-    doesn't report OTA data (i.e. most devices, most of the time).
-    """
     topic = f"{BASE_TOPIC}/sensor_a"
     hub._handle_device_state(_msg(topic, json.dumps({"battery": 12, "linkquality": 40})))
     await hass.async_block_till_done()

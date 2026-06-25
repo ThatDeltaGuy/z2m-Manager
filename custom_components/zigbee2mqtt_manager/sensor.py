@@ -162,7 +162,10 @@ class Z2MNetworkMapSensor(Z2MBridgeEntity, RestoreSensor):
         result = self._hub.last_networkmap
         if result is None:
             return {}
-        return {"type": result.type, "value": result.value}
+        attributes: dict[str, Any] = {"type": result.type, "value": result.value}
+        if isinstance(result.value, dict):
+            attributes.update(result.value)
+        return attributes
 
     @property
     def extra_restore_state_data(self) -> NetworkMapExtraStoredData | None:
