@@ -21,7 +21,7 @@ from homeassistant.util import dt as dt_util
 
 from . import Z2MManagerConfigEntry
 from .const import signal_device_linkable, signal_device_unlinkable, signal_devices
-from .entity import Z2MLinkedDeviceEntity, async_attach_to_linked_device
+from .entity import Z2MLinkedDeviceEntity, async_attach_to_linked_device, async_remove_if_disabled
 from .hub import Z2MHub
 from .models import DeviceLinkedPayload
 
@@ -84,11 +84,10 @@ async def async_setup_entry(
 
     @callback
     def _async_device_unlinkable(ieee_address: str) -> None:
-        # The entity itself self-removes via Z2MLinkedDeviceEntity's own
-        # unlinkable handling - this just clears our bookkeeping so a
-        # device that later re-links gets a fresh entity instead of being
-        # silently skipped as "already created".
+        # Clears bookkeeping so a device that later re-links gets a fresh
+        # entity instead of being silently skipped as "already created".
         created_for.discard(ieee_address)
+        async_remove_if_disabled(hass, platform="image", unique_id=f"{hub.entry_id}_{ieee_address}_image")
 
     entry.async_on_unload(
         async_dispatcher_connect(hass, signal_device_linkable(hub.entry_id), _async_device_linkable)
@@ -122,9 +121,6 @@ class Z2MDeviceImageEntity(Z2MLinkedDeviceEntity, ImageEntity):
         ImageEntity.__init__(self, hub.hass)
         self._attr_unique_id = f"{hub.entry_id}_{ieee_address}_image"
         self._attr_image_url = _device_image_url(definition_model)
-        # ImageEntity.state is derived from this (it's @final, so it can't
-        # be overridden directly) - without it the entity's state just
-        # shows "unknown" forever, even though the image itself is valid.
-        # The image URL is fixed at construction time (see class docstring),
-        # so "now" at construction is the one and only meaningful update.
+        # ImageEntity.state reads this (it's @final, can't be overridden) -
+        # otherwise state shows "unknown" forever despite a valid image.
         self._attr_image_last_updated = dt_util.utcnow()

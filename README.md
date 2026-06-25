@@ -32,6 +32,7 @@ A Home Assistant custom integration that acts as a management layer in front of 
 
 ## Requirements
 
+- **Home Assistant Core 2026.1 or newer.**
 - Home Assistant's core **MQTT** integration must already be set up and connected.
 - Each Zigbee2MQTT instance you add should have a distinct `mqtt.base_topic` (the default `zigbee2mqtt` for the first instance, e.g. `zigbee2mqtt_2` for a second).
 

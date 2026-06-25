@@ -15,9 +15,8 @@ from .hub import Z2MHub
 class Z2MBridgeEntity(Entity):
     """Base for entities representing one Zigbee2MQTT bridge instance.
 
-    This device is one this integration legitimately owns (it represents
-    "the bridge, as managed by this integration"), unlike the per-device
-    extras added in a later milestone, which attach to a device created by
+    This device is one this integration legitimately owns, unlike the
+    per-device extras below, which attach to a device created by
     Zigbee2MQTT's own MQTT discovery and must never use device_info.
     """
 
@@ -41,11 +40,8 @@ class Z2MBridgeEntity(Entity):
     async def async_added_to_hass(self) -> None:
         """Re-publish state whenever bridge online/offline status changes.
 
-        `available` defaults to tracking hub.bridge_online, but nothing else
-        makes that change visible on its own - a subclass whose own data
-        signal happens not to fire at the same time would otherwise keep
-        showing a stale availability. Subclasses that add their own
-        async_added_to_hass must call super().async_added_to_hass().
+        Subclasses with their own async_added_to_hass must call
+        super().async_added_to_hass().
         """
         self.async_on_remove(
             async_dispatcher_connect(
@@ -64,20 +60,10 @@ class Z2MLinkedDeviceEntity(Entity):
     """Base for per-device entities attached to an existing Z2M-discovered device.
 
     Never sets device_info/identifiers - self.device_entry is assigned
-    directly to the device device_link.py already found, so this entity
-    attaches to it without creating or claiming ownership of that device
-    (see device_link.py and the project plan for why this matters).
-
-    Persisting the link into the entity registry's device_id field is *not*
-    done here in async_added_to_hass: that hook only runs for live
-    (enabled) entities, but some of these entities are disabled by default
-    (e.g. remove/re-interview - see button.py), and HA's own entity
-    registration determines device_id purely from entity.device_info (which
-    this class deliberately never sets) regardless of enabled state. A
-    disabled instance would otherwise be registered with no device
-    association at all, even though self.device_entry is set correctly.
-    Platform setup functions must call async_attach_to_linked_device (below)
-    for every instance they create, enabled or not - see button.py/image.py.
+    directly to the device device_link.py found, attaching to it without
+    claiming ownership. Platform setup functions must call
+    async_attach_to_linked_device (below) for every instance they create,
+    enabled or not, to set device_id in the registry - see button.py/image.py.
 
     Only created for devices that are currently linkable (see hub.py's link
     reconciliation), and self-removes the moment that stops being true -
@@ -98,53 +84,6 @@ class Z2MLinkedDeviceEntity(Entity):
     def available(self) -> bool:
         return self._hub.bridge_online
 
-    def _device_prefixed_suggestion(self, own_suggestion: str | None) -> str | None:
-        if self.device_entry is None or not own_suggestion:
-            return own_suggestion
-        device_name = self.device_entry.name_by_user or self.device_entry.name
-        if not device_name:
-            return own_suggestion
-        return f"{device_name} {own_suggestion}"
-
-    @property
-    def suggested_object_id(self) -> str | None:
-        """Prefix the entity_id suggestion with the linked device's name.
-
-        entity_platform's own device-name-prefixing only triggers off
-        device_info, which this class deliberately never sets (see class
-        docstring) - without this override every device's per-device entity
-        of a given kind would suggest the same bare object_id (e.g.
-        "firmware"), relying on the registry's collision suffixing ("_2",
-        "_3", ...) instead of a meaningful per-device entity_id.
-
-        Only takes effect on HA Core versions that don't read
-        internal_integration_suggested_object_id below (kept for backwards
-        compatibility) - on versions that do, this value would otherwise be
-        treated as a mere "object_id_base" and get device name *and area
-        name* re-combined on top of it a second time by the entity
-        registry, producing entity_ids like
-        "bedroom_bedroom_light_1_bedroom_light_1_image" instead of
-        "bedroom_light_1_image" for a device named "Bedroom Light 1" in a
-        "Bedroom" area.
-        """
-        return self._device_prefixed_suggestion(super().suggested_object_id)
-
-    @property
-    def internal_integration_suggested_object_id(self) -> str | None:
-        """Same suggestion as suggested_object_id, for newer HA Core versions.
-
-        Newer HA Core (see entity_platform._async_derive_object_ids) only
-        treats a value from here as a true "suggested_object_id" - one that
-        bypasses the registry's own automatic area+device+entity name
-        combination. A value from the suggested_object_id property above is
-        instead treated as an "object_id_base", which *does* get that
-        automatic combination applied on top of it, double (and once an
-        area is involved, triple) prefixing the device's name. See
-        suggested_object_id's docstring for the resulting entity_id this
-        was producing before this property was added.
-        """
-        return self._device_prefixed_suggestion(super().suggested_object_id)
-
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
             async_dispatcher_connect(
@@ -157,7 +96,16 @@ class Z2MLinkedDeviceEntity(Entity):
     @callback
     def _handle_unlinkable(self, ieee_address: str) -> None:
         if ieee_address == self._ieee_address:
-            self.hass.async_create_task(self.async_remove(force_remove=True))
+            self.hass.async_create_task(self._async_remove_fully())
+
+    async def _async_remove_fully(self) -> None:
+        # Entity.async_remove only clears live state - it never deletes the
+        # entity registry entry, so that has to be done explicitly too.
+        entity_id = self.entity_id
+        await self.async_remove(force_remove=True)
+        registry = er.async_get(self.hass)
+        if registry.async_get(entity_id) is not None:
+            registry.async_remove(entity_id)
 
 
 def async_attach_to_linked_device(
@@ -166,12 +114,30 @@ def async_attach_to_linked_device(
     """Set a just-created entity's device_id in the registry.
 
     Must be called once after async_add_entities() for every
-    Z2MLinkedDeviceEntity instance, regardless of whether it ends up enabled
-    or disabled - see that class's docstring for why this can't be done in
-    async_added_to_hass instead. platform is the entity platform's own
-    domain (e.g. "button", "image"), not this integration's domain.
+    Z2MLinkedDeviceEntity instance, enabled or disabled. platform is the
+    entity platform's own domain (e.g. "button", "image"), not this
+    integration's domain.
     """
     registry = er.async_get(hass)
     entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
     if entity_id is not None:
         registry.async_update_entity(entity_id, device_id=ha_device_id)
+
+
+def async_remove_if_disabled(hass: HomeAssistant, *, platform: str, unique_id: str) -> None:
+    """Remove a per-device entity's registry entry if it's currently disabled.
+
+    Disabled entities have no live object, so Z2MLinkedDeviceEntity's own
+    unlinkable handling (which runs in async_added_to_hass) never fires for
+    them. Platform setup functions must call this on signal_device_unlinkable
+    for every unique_id they own, alongside that live self-removal path -
+    HA's own device-removal cascade only deletes entities that share the
+    removed device's own config entry, which these never do.
+    """
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(platform, DOMAIN, unique_id)
+    if entity_id is None:
+        return
+    entry = registry.async_get(entity_id)
+    if entry is not None and entry.disabled_by is not None:
+        registry.async_remove(entity_id)

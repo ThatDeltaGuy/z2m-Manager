@@ -128,15 +128,11 @@ def test_coordinator_excluded_even_with_stale_last_seen(hub: Z2MHub) -> None:
 
 
 def test_naive_last_seen_string_does_not_crash(hub: Z2MHub) -> None:
-    """Regression test: Zigbee2MQTT's "ISO_8601_local" last_seen format has no
-    UTC offset, so dt_util.parse_datetime returns a naive datetime.
-    Previously, comparing that against the aware dt_util.utcnow() raised
-    TypeError from inside native_value, which left the offline-devices
-    sensor stuck at "unknown" indefinitely (it never wrote state
-    successfully even once).
+    """Zigbee2MQTT's "ISO_8601_local" last_seen format has no UTC offset, so
+    dt_util.parse_datetime returns a naive datetime - must not raise when
+    compared against the aware dt_util.utcnow().
     """
     topic = f"{BASE_TOPIC}/last_seen_only"
-    # No UTC offset - this is what used to crash compute_offline_devices().
     hub._handle_device_state(_msg(topic, json.dumps({"last_seen": "2020-01-01T00:00:00.000"})))
 
     offline = hub.compute_offline_devices()  # must not raise
