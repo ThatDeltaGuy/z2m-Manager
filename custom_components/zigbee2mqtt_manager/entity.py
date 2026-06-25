@@ -98,6 +98,14 @@ class Z2MLinkedDeviceEntity(Entity):
     def available(self) -> bool:
         return self._hub.bridge_online
 
+    def _device_prefixed_suggestion(self, own_suggestion: str | None) -> str | None:
+        if self.device_entry is None or not own_suggestion:
+            return own_suggestion
+        device_name = self.device_entry.name_by_user or self.device_entry.name
+        if not device_name:
+            return own_suggestion
+        return f"{device_name} {own_suggestion}"
+
     @property
     def suggested_object_id(self) -> str | None:
         """Prefix the entity_id suggestion with the linked device's name.
@@ -108,14 +116,34 @@ class Z2MLinkedDeviceEntity(Entity):
         of a given kind would suggest the same bare object_id (e.g.
         "firmware"), relying on the registry's collision suffixing ("_2",
         "_3", ...) instead of a meaningful per-device entity_id.
+
+        Only takes effect on HA Core versions that don't read
+        internal_integration_suggested_object_id below (kept for backwards
+        compatibility) - on versions that do, this value would otherwise be
+        treated as a mere "object_id_base" and get device name *and area
+        name* re-combined on top of it a second time by the entity
+        registry, producing entity_ids like
+        "bedroom_bedroom_light_1_bedroom_light_1_image" instead of
+        "bedroom_light_1_image" for a device named "Bedroom Light 1" in a
+        "Bedroom" area.
         """
-        own_suggestion = super().suggested_object_id
-        if self.device_entry is None or not own_suggestion:
-            return own_suggestion
-        device_name = self.device_entry.name_by_user or self.device_entry.name
-        if not device_name:
-            return own_suggestion
-        return f"{device_name} {own_suggestion}"
+        return self._device_prefixed_suggestion(super().suggested_object_id)
+
+    @property
+    def internal_integration_suggested_object_id(self) -> str | None:
+        """Same suggestion as suggested_object_id, for newer HA Core versions.
+
+        Newer HA Core (see entity_platform._async_derive_object_ids) only
+        treats a value from here as a true "suggested_object_id" - one that
+        bypasses the registry's own automatic area+device+entity name
+        combination. A value from the suggested_object_id property above is
+        instead treated as an "object_id_base", which *does* get that
+        automatic combination applied on top of it, double (and once an
+        area is involved, triple) prefixing the device's name. See
+        suggested_object_id's docstring for the resulting entity_id this
+        was producing before this property was added.
+        """
+        return self._device_prefixed_suggestion(super().suggested_object_id)
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
